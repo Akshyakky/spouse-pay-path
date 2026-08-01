@@ -99,7 +99,13 @@ export function FamilyEditor({ familyId, canEdit }: { familyId: string; canEdit:
 
       const { error } = await supabase
         .from("families")
-        .update({ ...parsed, family_photo_url: photoKey })
+        .update({
+          family_name: parsed.family_name,
+          address: parsed.address ?? null,
+          contact_phone: parsed.contact_phone ?? null,
+          contact_email: parsed.contact_email ?? null,
+          family_photo_url: photoKey,
+        })
         .eq("id", familyId);
       if (error) throw error;
     },
