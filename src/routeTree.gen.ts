@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedFamilyRouteImport } from './routes/_authenticated/family'
+import { Route as AuthenticatedPaymentsRouteImport } from './routes/_authenticated/payments'
 import { Route as AuthenticatedFamiliesIndexRouteImport } from './routes/_authenticated/families.index'
 import { Route as AuthenticatedFamiliesIdRouteImport } from './routes/_authenticated/families.$id'
 
@@ -41,6 +42,11 @@ const AuthenticatedFamilyRoute = AuthenticatedFamilyRouteImport.update({
   path: '/family',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedPaymentsRoute = AuthenticatedPaymentsRouteImport.update({
+  id: '/payments',
+  path: '/payments',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedFamiliesIndexRoute =
   AuthenticatedFamiliesIndexRouteImport.update({
     id: '/families/',
@@ -58,6 +64,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/family': typeof AuthenticatedFamilyRoute
+  '/payments': typeof AuthenticatedPaymentsRoute
   '/families/$id': typeof AuthenticatedFamiliesIdRoute
   '/families/': typeof AuthenticatedFamiliesIndexRoute
 }
@@ -66,6 +73,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/family': typeof AuthenticatedFamilyRoute
+  '/payments': typeof AuthenticatedPaymentsRoute
   '/families/$id': typeof AuthenticatedFamiliesIdRoute
   '/families': typeof AuthenticatedFamiliesIndexRoute
 }
@@ -76,15 +84,29 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/family': typeof AuthenticatedFamilyRoute
+  '/_authenticated/payments': typeof AuthenticatedPaymentsRoute
   '/_authenticated/families/$id': typeof AuthenticatedFamiliesIdRoute
   '/_authenticated/families/': typeof AuthenticatedFamiliesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/auth' | '/dashboard' | '/family' | '/families/$id' | '/families/'
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/family'
+    | '/payments'
+    | '/families/$id'
+    | '/families/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/dashboard' | '/family' | '/families/$id' | '/families'
+  to:
+    | '/'
+    | '/auth'
+    | '/dashboard'
+    | '/family'
+    | '/payments'
+    | '/families/$id'
+    | '/families'
   id:
     | '__root__'
     | '/'
@@ -92,6 +114,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/dashboard'
     | '/_authenticated/family'
+    | '/_authenticated/payments'
     | '/_authenticated/families/$id'
     | '/_authenticated/families/'
   fileRoutesById: FileRoutesById
@@ -139,6 +162,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFamilyRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/payments': {
+      id: '/_authenticated/payments'
+      path: '/payments'
+      fullPath: '/payments'
+      preLoaderRoute: typeof AuthenticatedPaymentsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/families/': {
       id: '/_authenticated/families/'
       path: '/families'
@@ -159,6 +189,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedFamilyRoute: typeof AuthenticatedFamilyRoute
+  AuthenticatedPaymentsRoute: typeof AuthenticatedPaymentsRoute
   AuthenticatedFamiliesIdRoute: typeof AuthenticatedFamiliesIdRoute
   AuthenticatedFamiliesIndexRoute: typeof AuthenticatedFamiliesIndexRoute
 }
@@ -166,6 +197,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedFamilyRoute: AuthenticatedFamilyRoute,
+  AuthenticatedPaymentsRoute: AuthenticatedPaymentsRoute,
   AuthenticatedFamiliesIdRoute: AuthenticatedFamiliesIdRoute,
   AuthenticatedFamiliesIndexRoute: AuthenticatedFamiliesIndexRoute,
 }
