@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedExpensesRouteImport } from './routes/_authenticated/expenses'
 import { Route as AuthenticatedFamilyRouteImport } from './routes/_authenticated/family'
 import { Route as AuthenticatedPaymentsRouteImport } from './routes/_authenticated/payments'
 import { Route as AuthenticatedFamiliesIndexRouteImport } from './routes/_authenticated/families.index'
@@ -35,6 +36,11 @@ const AuthRoute = AuthRouteImport.update({
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedExpensesRoute = AuthenticatedExpensesRouteImport.update({
+  id: '/expenses',
+  path: '/expenses',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedFamilyRoute = AuthenticatedFamilyRouteImport.update({
@@ -63,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/expenses': typeof AuthenticatedExpensesRoute
   '/family': typeof AuthenticatedFamilyRoute
   '/payments': typeof AuthenticatedPaymentsRoute
   '/families/$id': typeof AuthenticatedFamiliesIdRoute
@@ -72,6 +79,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/expenses': typeof AuthenticatedExpensesRoute
   '/family': typeof AuthenticatedFamilyRoute
   '/payments': typeof AuthenticatedPaymentsRoute
   '/families/$id': typeof AuthenticatedFamiliesIdRoute
@@ -83,6 +91,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/expenses': typeof AuthenticatedExpensesRoute
   '/_authenticated/family': typeof AuthenticatedFamilyRoute
   '/_authenticated/payments': typeof AuthenticatedPaymentsRoute
   '/_authenticated/families/$id': typeof AuthenticatedFamiliesIdRoute
@@ -94,6 +103,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/dashboard'
+    | '/expenses'
     | '/family'
     | '/payments'
     | '/families/$id'
@@ -103,6 +113,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/dashboard'
+    | '/expenses'
     | '/family'
     | '/payments'
     | '/families/$id'
@@ -113,6 +124,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/_authenticated/dashboard'
+    | '/_authenticated/expenses'
     | '/_authenticated/family'
     | '/_authenticated/payments'
     | '/_authenticated/families/$id'
@@ -155,6 +167,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/expenses': {
+      id: '/_authenticated/expenses'
+      path: '/expenses'
+      fullPath: '/expenses'
+      preLoaderRoute: typeof AuthenticatedExpensesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/family': {
       id: '/_authenticated/family'
       path: '/family'
@@ -188,6 +207,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedExpensesRoute: typeof AuthenticatedExpensesRoute
   AuthenticatedFamilyRoute: typeof AuthenticatedFamilyRoute
   AuthenticatedPaymentsRoute: typeof AuthenticatedPaymentsRoute
   AuthenticatedFamiliesIdRoute: typeof AuthenticatedFamiliesIdRoute
@@ -196,6 +216,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedExpensesRoute: AuthenticatedExpensesRoute,
   AuthenticatedFamilyRoute: AuthenticatedFamilyRoute,
   AuthenticatedPaymentsRoute: AuthenticatedPaymentsRoute,
   AuthenticatedFamiliesIdRoute: AuthenticatedFamiliesIdRoute,
