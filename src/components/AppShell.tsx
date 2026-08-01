@@ -36,8 +36,8 @@ export function AppShell({
   children,
 }: {
   title: string;
-  description?: string;
-  actions?: ReactNode;
+  description?: string | undefined;
+  actions?: ReactNode | undefined;
   children: ReactNode;
 }) {
   const { isAdmin, user, role } = useRole();
@@ -139,8 +139,8 @@ export function StatCard({
 }: {
   label: string;
   value: string;
-  hint?: string;
-  tone?: "default" | "credit" | "debit";
+  hint?: string | undefined;
+  tone?: "default" | "credit" | "debit" | undefined;
 }) {
   return (
     <div className="surface p-5">

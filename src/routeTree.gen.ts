@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedFamilyRouteImport } from './routes/_authenticated/family'
 import { Route as AuthenticatedFamiliesIndexRouteImport } from './routes/_authenticated/families.index'
+import { Route as AuthenticatedFamiliesIdRouteImport } from './routes/_authenticated/families.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,12 +47,18 @@ const AuthenticatedFamiliesIndexRoute =
     path: '/families/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedFamiliesIdRoute = AuthenticatedFamiliesIdRouteImport.update({
+  id: '/families/$id',
+  path: '/families/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/family': typeof AuthenticatedFamilyRoute
+  '/families/$id': typeof AuthenticatedFamiliesIdRoute
   '/families/': typeof AuthenticatedFamiliesIndexRoute
 }
 export interface FileRoutesByTo {
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/family': typeof AuthenticatedFamilyRoute
+  '/families/$id': typeof AuthenticatedFamiliesIdRoute
   '/families': typeof AuthenticatedFamiliesIndexRoute
 }
 export interface FileRoutesById {
@@ -68,13 +76,15 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/family': typeof AuthenticatedFamilyRoute
+  '/_authenticated/families/$id': typeof AuthenticatedFamiliesIdRoute
   '/_authenticated/families/': typeof AuthenticatedFamiliesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/dashboard' | '/family' | '/families/'
+  fullPaths:
+    '/' | '/auth' | '/dashboard' | '/family' | '/families/$id' | '/families/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/dashboard' | '/family' | '/families'
+  to: '/' | '/auth' | '/dashboard' | '/family' | '/families/$id' | '/families'
   id:
     | '__root__'
     | '/'
@@ -82,6 +92,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/dashboard'
     | '/_authenticated/family'
+    | '/_authenticated/families/$id'
     | '/_authenticated/families/'
   fileRoutesById: FileRoutesById
 }
@@ -135,18 +146,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFamiliesIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/families/$id': {
+      id: '/_authenticated/families/$id'
+      path: '/families/$id'
+      fullPath: '/families/$id'
+      preLoaderRoute: typeof AuthenticatedFamiliesIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedFamilyRoute: typeof AuthenticatedFamilyRoute
+  AuthenticatedFamiliesIdRoute: typeof AuthenticatedFamiliesIdRoute
   AuthenticatedFamiliesIndexRoute: typeof AuthenticatedFamiliesIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedFamilyRoute: AuthenticatedFamilyRoute,
+  AuthenticatedFamiliesIdRoute: AuthenticatedFamiliesIdRoute,
   AuthenticatedFamiliesIndexRoute: AuthenticatedFamiliesIndexRoute,
 }
 
