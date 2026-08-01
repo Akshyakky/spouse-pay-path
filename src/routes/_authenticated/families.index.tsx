@@ -117,17 +117,43 @@ function CreateFamilyDialog() {
 
   const create = useMutation({
     mutationFn: async (form: FormData) => {
-      const payload = {
-        familyName: String(form.get("family_name") ?? "").trim(),
-        username: String(form.get("username") ?? "").trim(),
-        tempPassword: String(form.get("password") ?? ""),
-        wifeName: String(form.get("wife_name") ?? "").trim(),
-        contactPhone: String(form.get("contact_phone") ?? "").trim(),
-        contactEmail: String(form.get("contact_email") ?? "").trim(),
-      };
-      await createFamilyLogin({ data: payload });
-      return { username: payload.username, password: payload.tempPassword };
+      const username = String(form.get("username") ?? "").trim();
+      const password = String(form.get("password") ?? "");
+      const { data: family, error } = await supabase
+        .from("families")
+        .insert({
+          family_name: String(form.get("family_name") ?? "").trim(),
+          contact_phone: String(form.get("contact_phone") ?? "").trim() || null,
+          contact_email: String(form.get("contact_email") ?? "").trim() || null,
+        })
+        .select("id")
+        .single();
+      if (error) throw error;
+
+      try {
+        await createFamilyLogin({
+          data: {
+            familyId: family.id,
+            username,
+            password,
+            fullName: String(form.get("wife_name") ?? "").trim(),
+          },
+        });
+      } catch (e) {
+        await supabase.from("families").delete().eq("id", family.id);
+        throw e;
+      }
+
+      const wifeName = String(form.get("wife_name") ?? "").trim();
+      if (wifeName) {
+        await supabase
+          .from("family_members")
+          .insert({ family_id: family.id, relationship: "wife", full_name: wifeName });
+      }
+
+      return { username, password };
     },
+
     onSuccess: (result) => {
       setCreated(result);
       toast.success("Family login created");
