@@ -270,6 +270,7 @@ export type Database = {
         Returns: boolean
       }
       is_family_owner: { Args: { _family_id: string }; Returns: boolean }
+      storage_path_is_own_family: { Args: { _name: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "family"
