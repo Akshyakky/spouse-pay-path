@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell, StatCard } from "@/components/AppShell";
 import { formatMoney, useMyFamily, useRole } from "@/lib/auth";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
@@ -145,11 +145,4 @@ function Dashboard() {
       </section>
     </AppShell>
   );
-}
-
-export function StatusBadge({ status }: { status: string }) {
-  if (status === "approved")
-    return <Badge className="bg-success text-success-foreground">Approved</Badge>;
-  if (status === "rejected") return <Badge variant="destructive">Rejected</Badge>;
-  return <Badge variant="secondary">Pending</Badge>;
 }

@@ -20,6 +20,7 @@ import { Route as AuthenticatedPaymentsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticated/reports'
 import { Route as AuthenticatedFamiliesIndexRouteImport } from './routes/_authenticated/families.index'
 import { Route as AuthenticatedFamiliesIdRouteImport } from './routes/_authenticated/families.$id'
+import { Route as AuthenticatedVouchersIdRouteImport } from './routes/_authenticated/vouchers.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -76,6 +77,11 @@ const AuthenticatedFamiliesIdRoute = AuthenticatedFamiliesIdRouteImport.update({
   path: '/families/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedVouchersIdRoute = AuthenticatedVouchersIdRouteImport.update({
+  id: '/vouchers/$id',
+  path: '/vouchers/$id',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/payments': typeof AuthenticatedPaymentsRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/families/$id': typeof AuthenticatedFamiliesIdRoute
+  '/vouchers/$id': typeof AuthenticatedVouchersIdRoute
   '/families/': typeof AuthenticatedFamiliesIndexRoute
 }
 export interface FileRoutesByTo {
@@ -99,6 +106,7 @@ export interface FileRoutesByTo {
   '/payments': typeof AuthenticatedPaymentsRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/families/$id': typeof AuthenticatedFamiliesIdRoute
+  '/vouchers/$id': typeof AuthenticatedVouchersIdRoute
   '/families': typeof AuthenticatedFamiliesIndexRoute
 }
 export interface FileRoutesById {
@@ -113,6 +121,7 @@ export interface FileRoutesById {
   '/_authenticated/payments': typeof AuthenticatedPaymentsRoute
   '/_authenticated/reports': typeof AuthenticatedReportsRoute
   '/_authenticated/families/$id': typeof AuthenticatedFamiliesIdRoute
+  '/_authenticated/vouchers/$id': typeof AuthenticatedVouchersIdRoute
   '/_authenticated/families/': typeof AuthenticatedFamiliesIndexRoute
 }
 export interface FileRouteTypes {
@@ -127,6 +136,7 @@ export interface FileRouteTypes {
     | '/payments'
     | '/reports'
     | '/families/$id'
+    | '/vouchers/$id'
     | '/families/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -139,6 +149,7 @@ export interface FileRouteTypes {
     | '/payments'
     | '/reports'
     | '/families/$id'
+    | '/vouchers/$id'
     | '/families'
   id:
     | '__root__'
@@ -152,6 +163,7 @@ export interface FileRouteTypes {
     | '/_authenticated/payments'
     | '/_authenticated/reports'
     | '/_authenticated/families/$id'
+    | '/_authenticated/vouchers/$id'
     | '/_authenticated/families/'
   fileRoutesById: FileRoutesById
 }
@@ -240,6 +252,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFamiliesIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/vouchers/$id': {
+      id: '/_authenticated/vouchers/$id'
+      path: '/vouchers/$id'
+      fullPath: '/vouchers/$id'
+      preLoaderRoute: typeof AuthenticatedVouchersIdRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
   }
 }
 
@@ -251,6 +270,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedPaymentsRoute: typeof AuthenticatedPaymentsRoute
   AuthenticatedReportsRoute: typeof AuthenticatedReportsRoute
   AuthenticatedFamiliesIdRoute: typeof AuthenticatedFamiliesIdRoute
+  AuthenticatedVouchersIdRoute: typeof AuthenticatedVouchersIdRoute
   AuthenticatedFamiliesIndexRoute: typeof AuthenticatedFamiliesIndexRoute
 }
 
@@ -262,6 +282,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedPaymentsRoute: AuthenticatedPaymentsRoute,
   AuthenticatedReportsRoute: AuthenticatedReportsRoute,
   AuthenticatedFamiliesIdRoute: AuthenticatedFamiliesIdRoute,
+  AuthenticatedVouchersIdRoute: AuthenticatedVouchersIdRoute,
   AuthenticatedFamiliesIndexRoute: AuthenticatedFamiliesIndexRoute,
 }
 
