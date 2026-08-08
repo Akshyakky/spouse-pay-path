@@ -211,6 +211,7 @@ function PaymentDialog({ familyId }: { familyId: string }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"cash" | "online">("online");
   const queryClient = useQueryClient();
+  const { user } = useRole();
 
   const submit = useMutation({
     mutationFn: async (form: FormData) => {
@@ -226,8 +227,12 @@ function PaymentDialog({ familyId }: { familyId: string }) {
       let screenshotKey: string | null = null;
       if (file && file.size > 0) screenshotKey = await uploadFile(`${familyId}/payments`, file);
 
+      if (!user) throw new Error("You must be signed in to submit a payment");
+
       const { error } = await supabase.from("payments").insert({
         family_id: familyId,
+        created_by: user.id,
+        status: "pending",
         amount,
         mode,
         payment_date: String(form.get("payment_date") ?? "") || new Date().toISOString().slice(0, 10),
