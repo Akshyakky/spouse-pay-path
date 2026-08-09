@@ -7,12 +7,9 @@ import { loginIdentifierToEmail } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/auth")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    mode: search['mode'] === "register" ? ("register" as const) : ("login" as const),
-  }),
+
   head: () => ({
     meta: [
       { title: "Sign in — Family Payment Tracking System" },
@@ -37,15 +34,9 @@ const loginSchema = z.object({
   password: z.string().min(6, "Enter your password").max(72),
 });
 
-const registerSchema = z.object({
-  email: z.string().trim().email("Enter a valid email").max(255),
-  password: z.string().min(8, "Use at least 8 characters").max(72),
-  fullName: z.string().trim().min(2, "Enter your name").max(120),
-});
-
 function AuthPage() {
   const navigate = useNavigate();
-  const { mode } = Route.useSearch();
+
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -79,39 +70,8 @@ function AuthPage() {
     navigate({ to: "/dashboard", replace: true });
   }
 
-  async function handleRegister(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = new FormData(e.currentTarget);
-    const parsed = registerSchema.safeParse({
-      email: String(form.get("email") ?? ""),
-      password: String(form.get("password") ?? ""),
-      fullName: String(form.get("fullName") ?? ""),
-    });
-    if (!parsed.success) {
-      toast.error(parsed.error.issues[0]?.message ?? "Check your details");
-      return;
-    }
-    setBusy(true);
-    const { data, error } = await supabase.auth.signUp({
-      email: parsed.data.email,
-      password: parsed.data.password,
-      options: {
-        emailRedirectTo: window.location.origin,
-        data: { full_name: parsed.data.fullName },
-      },
-    });
-    setBusy(false);
-    if (error) {
-      toast.error(error.message);
-      return;
-    }
-    if (!data.session) {
-      toast.success("Account created. Check your email to confirm, then sign in.");
-      return;
-    }
-    toast.success("Account created");
-    navigate({ to: "/dashboard", replace: true });
-  }
+
+
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
