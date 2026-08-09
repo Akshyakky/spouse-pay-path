@@ -6,6 +6,7 @@ import { Pencil, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { calcAge, uploadFile } from "@/lib/auth";
 import { PrivateImage } from "@/components/PrivateImage";
+import { MemberIdCard } from "@/components/family/MemberIdCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -242,19 +243,26 @@ export function FamilyEditor({ familyId, canEdit }: { familyId: string; canEdit:
                 {member.remarks ? (
                   <p className="mt-1 text-xs text-muted-foreground">{member.remarks}</p>
                 ) : null}
-                {canEdit ? (
-                  <div className="mt-3 flex gap-2">
-                    <MemberDialog familyId={familyId} member={member} />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deleteMember.mutate(member.id)}
-                      aria-label={`Remove ${member.full_name}`}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </div>
-                ) : null}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <MemberIdCard
+                    member={member}
+                    familyNo={family?.family_no ?? "—"}
+                    familyName={family?.family_name ?? "—"}
+                  />
+                  {canEdit ? (
+                    <>
+                      <MemberDialog familyId={familyId} member={member} />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => deleteMember.mutate(member.id)}
+                        aria-label={`Remove ${member.full_name}`}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </>
+                  ) : null}
+                </div>
               </div>
             </article>
           ))}

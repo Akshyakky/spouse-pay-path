@@ -112,7 +112,7 @@ export function MemberIdCard({
   const print = () => {
     const win = window.open("", "_blank", "width=520,height=680");
     if (!win) return;
-    win.document.write(buildCardHtml({ member, familyNo, familyName, photoUrl }));
+    win.document.write(buildCardHtml({ member, familyNo, familyName, photoUrl: photoUrl ?? null }));
     win.document.close();
   };
 
