@@ -138,70 +138,33 @@ function AuthPage() {
             Family users sign in with their username. Administrators use their email address.
           </p>
 
-          <Tabs defaultValue={mode} className="mt-8">
-            <TabsList className="w-full">
-              <TabsTrigger value="login" className="flex-1">
-                Sign in
-              </TabsTrigger>
-              <TabsTrigger value="register" className="flex-1">
-                Admin setup
-              </TabsTrigger>
-            </TabsList>
+          <form onSubmit={handleLogin} className="mt-8 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="identifier">Username or email</Label>
+              <Input id="identifier" name="identifier" autoComplete="username" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+              />
+            </div>
+            <Button type="submit" className="w-full" disabled={busy}>
+              {busy ? "Signing in…" : "Sign in"}
+            </Button>
+          </form>
 
-            <TabsContent value="login">
-              <form onSubmit={handleLogin} className="space-y-4 pt-4">
-                <div className="space-y-2">
-                  <Label htmlFor="identifier">Username or email</Label>
-                  <Input id="identifier" name="identifier" autoComplete="username" required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input
-                    id="password"
-                    name="password"
-                    type="password"
-                    autoComplete="current-password"
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={busy}>
-                  {busy ? "Signing in…" : "Sign in"}
-                </Button>
-              </form>
-            </TabsContent>
-
-            <TabsContent value="register">
-              <form onSubmit={handleRegister} className="space-y-4 pt-4">
-                <p className="rounded-lg bg-secondary p-3 text-xs text-secondary-foreground">
-                  The first account created becomes the administrator. Further administrators are
-                  added from inside the app, and family logins are issued by an admin.
-                </p>
-                <div className="space-y-2">
-                  <Label htmlFor="fullName">Full name</Label>
-                  <Input id="fullName" name="fullName" required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" name="email" type="email" autoComplete="email" required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="newPassword">Password</Label>
-                  <Input
-                    id="newPassword"
-                    name="password"
-                    type="password"
-                    autoComplete="new-password"
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={busy}>
-                  {busy ? "Creating…" : "Create account"}
-                </Button>
-              </form>
-            </TabsContent>
-          </Tabs>
+          <p className="mt-6 rounded-lg bg-secondary p-3 text-xs text-secondary-foreground">
+            Accounts are not self-service. Administrators are added from inside the app by an
+            existing admin, and family logins are issued by an admin.
+          </p>
         </div>
       </div>
     </div>
   );
 }
+

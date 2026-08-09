@@ -75,12 +75,8 @@ function Landing() {
             <Button asChild size="lg">
               <Link to="/auth">Sign in to your account</Link>
             </Button>
-            <Button asChild size="lg" variant="outline">
-              <Link to="/auth" search={{ mode: "register" } as never}>
-                Set up the admin account
-              </Link>
-            </Button>
           </div>
+
         </div>
       </header>
 
