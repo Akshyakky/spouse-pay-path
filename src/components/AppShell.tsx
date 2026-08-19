@@ -11,8 +11,9 @@ import {
   Menu,
   UserCircle,
   ShieldCheck,
+  ClipboardList,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { logout } from "@/lib/api/auth";
 import { useRole } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ const NAV: NavItem[] = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/families", label: "Families", icon: Users, admin: true },
   { to: "/family", label: "My family", icon: UserCircle, family: true },
+  { to: "/dues", label: "Dues", icon: ClipboardList },
   { to: "/payments", label: "Payments", icon: Receipt },
   { to: "/expenses", label: "Expenses", icon: Wallet, admin: true },
   { to: "/reports", label: "Reports", icon: BarChart3 },
@@ -51,12 +53,12 @@ export function AppShell({
   async function handleSignOut() {
     await queryClient.cancelQueries();
     queryClient.clear();
-    await supabase.auth.signOut();
+    await logout();
     navigate({ to: "/auth", replace: true });
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex h-dvh overflow-hidden bg-background">
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-40 w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground transition-transform lg:static lg:flex lg:translate-x-0",
@@ -69,7 +71,7 @@ export function AppShell({
           </p>
           <p className="mt-1 text-xs text-sidebar-foreground/70">Tracking &amp; approvals</p>
         </div>
-        <nav className="flex-1 space-y-1 px-3 py-4">
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {items.map((item) => {
             const active = pathname === item.to || pathname.startsWith(`${item.to}/`);
             return (
@@ -104,8 +106,8 @@ export function AppShell({
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <header className="z-30 shrink-0 border-b border-border bg-background/80 backdrop-blur">
           <div className="flex items-center gap-3 px-4 py-4 sm:px-6">
             <Button
               variant="outline"
@@ -125,7 +127,7 @@ export function AppShell({
             {actions}
           </div>
         </header>
-        <main className="flex-1 px-4 py-6 sm:px-6">{children}</main>
+        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6">{children}</main>
       </div>
     </div>
   );

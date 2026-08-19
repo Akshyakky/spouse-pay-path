@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { getReport } from "@/lib/api/expenses";
 import { AppShell, StatCard } from "@/components/AppShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatMoney, useRole } from "@/lib/auth";
@@ -31,28 +31,7 @@ function ReportsPage() {
 
   const report = useQuery({
     queryKey: ["report", from, to, isAdmin],
-    queryFn: async () => {
-      const payments = await supabase
-        .from("payments")
-        .select("id, voucher_no, amount, status, payment_date, mode")
-        .gte("payment_date", from)
-        .lte("payment_date", to)
-        .order("payment_date", { ascending: false });
-      if (payments.error) throw payments.error;
-
-      let expenses: { id: string; amount: number; category: string; expense_date: string }[] = [];
-      if (isAdmin) {
-        const res = await supabase
-          .from("expenses")
-          .select("id, amount, category, expense_date")
-          .gte("expense_date", from)
-          .lte("expense_date", to)
-          .order("expense_date", { ascending: false });
-        if (res.error) throw res.error;
-        expenses = res.data ?? [];
-      }
-      return { payments: payments.data ?? [], expenses };
-    },
+    queryFn: () => getReport({ data: { from, to } }),
   });
 
   const credit = (report.data?.payments ?? [])

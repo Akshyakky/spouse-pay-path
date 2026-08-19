@@ -3,7 +3,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Pencil, Plus, Trash2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import {
+  deleteFamilyMember,
+  getFamilyById,
+  listFamilyMembers,
+  setFamilyHead,
+  updateFamily,
+  upsertFamilyMember,
+  type MemberRow,
+} from "@/lib/api/families";
+import type { IdCardType } from "@/lib/api/mappers";
 import { calcAge, uploadFile } from "@/lib/auth";
 import { PrivateImage } from "@/components/PrivateImage";
 import { MemberIdCard } from "@/components/family/MemberIdCard";
@@ -17,9 +26,21 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogBody,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -30,17 +51,7 @@ import {
 
 type Relationship = "wife" | "husband" | "daughter" | "son" | "other";
 
-type Member = {
-  id: string;
-  family_id: string;
-  relationship: Relationship;
-  full_name: string;
-  gender: string | null;
-  date_of_birth: string | null;
-  contact: string | null;
-  photo_url: string | null;
-  remarks: string | null;
-};
+type Member = MemberRow;
 
 const RELATIONSHIPS: { value: Relationship; label: string }[] = [
   { value: "wife", label: "Wife" },
@@ -50,45 +61,60 @@ const RELATIONSHIPS: { value: Relationship; label: string }[] = [
   { value: "other", label: "Other dependent" },
 ];
 
+const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"] as const;
+
+const GENDERS = ["Male", "Female", "Other"] as const;
+
+const ID_CARD_TYPES: { value: IdCardType; label: string }[] = [
+  { value: "aadhaar", label: "Aadhaar" },
+  { value: "pan", label: "PAN" },
+  { value: "epic", label: "EPIC" },
+  { value: "dl", label: "DL" },
+  { value: "ration_card", label: "Ration Card" },
+];
+
+function idCardLabel(type: IdCardType | null | undefined) {
+  return ID_CARD_TYPES.find((t) => t.value === type)?.label ?? type ?? "ID";
+}
+
 const profileSchema = z.object({
+  family_no: z
+    .string()
+    .trim()
+    .max(20)
+    .optional()
+    .transform((v) => (v && v.length > 0 ? v : undefined)),
   family_name: z.string().trim().min(2, "Family name is required").max(120),
   address: z.string().trim().max(300).optional(),
   contact_phone: z.string().trim().max(30).optional(),
   contact_email: z.string().trim().max(255).optional(),
 });
 
-export function FamilyEditor({ familyId, canEdit }: { familyId: string; canEdit: boolean }) {
+export function FamilyEditor({
+  familyId,
+  canEdit,
+  canEditFamilyId = false,
+}: {
+  familyId: string;
+  canEdit: boolean;
+  canEditFamilyId?: boolean;
+}) {
   const queryClient = useQueryClient();
 
   const familyQuery = useQuery({
     queryKey: ["family", familyId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("families")
-        .select("*")
-        .eq("id", familyId)
-        .single();
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => getFamilyById({ data: { id: familyId } }),
   });
 
   const membersQuery = useQuery({
     queryKey: ["family-members", familyId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("family_members")
-        .select("*")
-        .eq("family_id", familyId)
-        .order("created_at", { ascending: true });
-      if (error) throw error;
-      return (data ?? []) as Member[];
-    },
+    queryFn: () => listFamilyMembers({ data: { familyId } }),
   });
 
   const saveProfile = useMutation({
     mutationFn: async (form: FormData) => {
       const parsed = profileSchema.parse({
+        family_no: String(form.get("family_no") ?? ""),
         family_name: String(form.get("family_name") ?? ""),
         address: String(form.get("address") ?? ""),
         contact_phone: String(form.get("contact_phone") ?? ""),
@@ -98,33 +124,50 @@ export function FamilyEditor({ familyId, canEdit }: { familyId: string; canEdit:
       let photoKey = familyQuery.data?.family_photo_url ?? null;
       if (photo && photo.size > 0) photoKey = await uploadFile(`${familyId}/family`, photo);
 
-      const { error } = await supabase
-        .from("families")
-        .update({
+      await updateFamily({
+        data: {
+          id: familyId,
+          family_no: canEditFamilyId
+            ? parsed.family_no || familyQuery.data?.family_no
+            : familyQuery.data?.family_no,
           family_name: parsed.family_name,
           address: parsed.address ?? null,
           contact_phone: parsed.contact_phone ?? null,
           contact_email: parsed.contact_email ?? null,
           family_photo_url: photoKey,
-        })
-        .eq("id", familyId);
-      if (error) throw error;
+        },
+      });
     },
     onSuccess: () => {
       toast.success("Family profile saved");
       queryClient.invalidateQueries({ queryKey: ["family", familyId] });
+      queryClient.invalidateQueries({ queryKey: ["families"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const deleteMember = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("family_members").delete().eq("id", id);
-      if (error) throw error;
+      await deleteFamilyMember({ data: { id, familyId } });
     },
     onSuccess: () => {
       toast.success("Member removed");
       queryClient.invalidateQueries({ queryKey: ["family-members", familyId] });
+      queryClient.invalidateQueries({ queryKey: ["family", familyId] });
+      queryClient.invalidateQueries({ queryKey: ["families"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const setHead = useMutation({
+    mutationFn: async (memberId: string) => {
+      await setFamilyHead({ data: { memberId, familyId } });
+    },
+    onSuccess: () => {
+      toast.success("Head of family updated");
+      queryClient.invalidateQueries({ queryKey: ["family-members", familyId] });
+      queryClient.invalidateQueries({ queryKey: ["family", familyId] });
+      queryClient.invalidateQueries({ queryKey: ["families"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -138,7 +181,15 @@ export function FamilyEditor({ familyId, canEdit }: { familyId: string; canEdit:
           <div>
             <h2 className="text-base font-semibold">Family profile</h2>
             <p className="text-sm text-muted-foreground">
-              Family ID <span className="font-medium text-foreground">{family?.family_no}</span>
+              {family?.head_of_family ? (
+                <>
+                  Head of family{" "}
+                  <span className="font-medium text-foreground">{family.head_of_family}</span>
+                  {" — change from members below"}
+                </>
+              ) : (
+                "Set a head of family from members below"
+              )}
             </p>
           </div>
           <PrivateImage
@@ -156,10 +207,22 @@ export function FamilyEditor({ familyId, canEdit }: { familyId: string; canEdit:
           }}
         >
           <div className="space-y-2">
+            <Label htmlFor="family_no">Family ID</Label>
+            <Input
+              id="family_no"
+              name="family_no"
+              key={family?.family_no ?? "family-no"}
+              defaultValue={family?.family_no ?? ""}
+              disabled={!canEdit || !canEditFamilyId}
+              required={canEditFamilyId}
+            />
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="family_name">Family name</Label>
             <Input
               id="family_name"
               name="family_name"
+              key={family?.family_name ?? "family-name"}
               defaultValue={family?.family_name ?? ""}
               disabled={!canEdit}
               required
@@ -212,7 +275,7 @@ export function FamilyEditor({ familyId, canEdit }: { familyId: string; canEdit:
           <div>
             <h2 className="text-base font-semibold">Family members</h2>
             <p className="text-sm text-muted-foreground">
-              Husband, daughter, son and any other dependents.
+              Set one member as head of family. That name appears on the families list.
             </p>
           </div>
           {canEdit ? <MemberDialog familyId={familyId} /> : null}
@@ -223,19 +286,25 @@ export function FamilyEditor({ familyId, canEdit }: { familyId: string; canEdit:
             <article key={member.id} className="flex gap-4 rounded-xl border border-border p-4">
               <PrivateImage path={member.photo_url} alt={member.full_name} className="size-16 shrink-0" />
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <p className="truncate font-medium">{member.full_name}</p>
                   <Badge variant="secondary" className="capitalize">
                     {member.relationship}
                   </Badge>
+                  {member.is_head ? <Badge>Head of family</Badge> : null}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {[
                     member.gender,
+                    member.id_card_type && member.id_card_number
+                      ? `${idCardLabel(member.id_card_type)} ${member.id_card_number}`
+                      : null,
+                    member.blood_group ? `Blood ${member.blood_group}` : null,
                     member.date_of_birth
                       ? `${member.date_of_birth} (${calcAge(member.date_of_birth)} yrs)`
                       : null,
                     member.contact,
+                    member.address,
                   ]
                     .filter(Boolean)
                     .join(" · ") || "No details yet"}
@@ -251,15 +320,47 @@ export function FamilyEditor({ familyId, canEdit }: { familyId: string; canEdit:
                   />
                   {canEdit ? (
                     <>
+                      {!member.is_head ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={setHead.isPending}
+                          onClick={() => setHead.mutate(member.id)}
+                        >
+                          Set as head
+                        </Button>
+                      ) : null}
                       <MemberDialog familyId={familyId} member={member} />
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => deleteMember.mutate(member.id)}
-                        aria-label={`Remove ${member.full_name}`}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            disabled={deleteMember.isPending}
+                            aria-label={`Remove ${member.full_name}`}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Remove {member.full_name}?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This permanently deletes this family member. This cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              onClick={() => deleteMember.mutate(member.id)}
+                            >
+                              Remove member
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </>
                   ) : null}
                 </div>
@@ -275,48 +376,98 @@ export function FamilyEditor({ familyId, canEdit }: { familyId: string; canEdit:
   );
 }
 
+function ageToDob(age: number): string {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - age);
+  return d.toISOString().slice(0, 10);
+}
+
 function MemberDialog({ familyId, member }: { familyId: string; member?: Member }) {
   const [open, setOpen] = useState(false);
-  const [relationship, setRelationship] = useState<Relationship>(member?.relationship ?? "husband");
+  const [relationship, setRelationship] = useState<Relationship>(member?.relationship ?? "wife");
+  const [gender, setGender] = useState<string>(member?.gender ?? "");
+  const [idCardType, setIdCardType] = useState<IdCardType | "">(member?.id_card_type ?? "");
+  const [bloodGroup, setBloodGroup] = useState<string>(member?.blood_group ?? "");
+  const [dob, setDob] = useState<string>(member?.date_of_birth ?? "");
+  const [age, setAge] = useState<string>(
+    member?.date_of_birth ? String(calcAge(member.date_of_birth) ?? "") : "",
+  );
   const queryClient = useQueryClient();
+
+  function resetFields() {
+    setRelationship(member?.relationship ?? "wife");
+    setGender(member?.gender ?? "");
+    setIdCardType(member?.id_card_type ?? "");
+    setBloodGroup(member?.blood_group ?? "");
+    setDob(member?.date_of_birth ?? "");
+    setAge(member?.date_of_birth ? String(calcAge(member.date_of_birth) ?? "") : "");
+  }
 
   const save = useMutation({
     mutationFn: async (form: FormData) => {
       const fullName = String(form.get("full_name") ?? "").trim();
       if (fullName.length < 2) throw new Error("Full name is required");
+      if (!gender) throw new Error("Gender is required");
+      if (!idCardType) throw new Error("ID card type is required");
+      const idCardNumber = String(form.get("id_card_number") ?? "").trim();
+      if (idCardNumber.length < 3) throw new Error("ID card number is required");
+
       const photo = form.get("photo") as File | null;
       let photoKey = member?.photo_url ?? null;
       if (photo && photo.size > 0) photoKey = await uploadFile(`${familyId}/members`, photo);
 
-      const payload = {
-        family_id: familyId,
-        relationship,
-        full_name: fullName,
-        gender: String(form.get("gender") ?? "") || null,
-        date_of_birth: String(form.get("date_of_birth") ?? "") || null,
-        contact: String(form.get("contact") ?? "") || null,
-        remarks: String(form.get("remarks") ?? "") || null,
-        photo_url: photoKey,
-      };
-
-      if (member) {
-        const { error } = await supabase.from("family_members").update(payload).eq("id", member.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("family_members").insert(payload);
-        if (error) throw error;
+      let dateOfBirth = dob || null;
+      if (!dateOfBirth && age) {
+        const n = Number(age);
+        if (!Number.isInteger(n) || n < 0 || n > 120) throw new Error("Enter a valid age (0–120)");
+        dateOfBirth = ageToDob(n);
       }
+
+      await upsertFamilyMember({
+        data: {
+          id: member?.id,
+          family_id: familyId,
+          relationship,
+          full_name: fullName,
+          gender: gender as "Male" | "Female" | "Other",
+          id_card_type: idCardType,
+          id_card_number: idCardNumber,
+          date_of_birth: dateOfBirth,
+          blood_group: (bloodGroup || null) as
+            | "A+"
+            | "A-"
+            | "B+"
+            | "B-"
+            | "AB+"
+            | "AB-"
+            | "O+"
+            | "O-"
+            | null,
+          contact: String(form.get("contact") ?? "") || null,
+          address: String(form.get("address") ?? "").trim() || null,
+          remarks: String(form.get("remarks") ?? "") || null,
+          photo_url: photoKey,
+        },
+      });
     },
     onSuccess: () => {
       toast.success(member ? "Member updated" : "Member added");
       queryClient.invalidateQueries({ queryKey: ["family-members", familyId] });
+      queryClient.invalidateQueries({ queryKey: ["family", familyId] });
+      queryClient.invalidateQueries({ queryKey: ["families"] });
       setOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (v) resetFields();
+      }}
+    >
       <DialogTrigger asChild>
         {member ? (
           <Button variant="outline" size="sm">
@@ -328,17 +479,18 @@ function MemberDialog({ familyId, member }: { familyId: string; member?: Member 
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>{member ? "Update member" : "Add family member"}</DialogTitle>
         </DialogHeader>
         <form
-          className="space-y-4"
+          className="flex min-h-0 flex-1 flex-col"
           onSubmit={(e) => {
             e.preventDefault();
             save.mutate(new FormData(e.currentTarget));
           }}
         >
+          <DialogBody className="space-y-4">
           <div className="space-y-2">
             <Label>Relationship</Label>
             <Select value={relationship} onValueChange={(v) => setRelationship(v as Relationship)}>
@@ -360,22 +512,121 @@ function MemberDialog({ familyId, member }: { familyId: string; member?: Member 
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="gender">Gender</Label>
-              <Input id="gender" name="gender" defaultValue={member?.gender ?? ""} />
+              <Label>Gender</Label>
+              <Select value={gender || undefined} onValueChange={setGender}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select gender" />
+                </SelectTrigger>
+                <SelectContent>
+                  {GENDERS.map((g) => (
+                    <SelectItem key={g} value={g}>
+                      {g}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+            <div className="space-y-2">
+              <Label>Blood group</Label>
+              <Select
+                value={bloodGroup || "none"}
+                onValueChange={(v) => setBloodGroup(v === "none" ? "" : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select blood group" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Not specified</SelectItem>
+                  {BLOOD_GROUPS.map((g) => (
+                    <SelectItem key={g} value={g}>
+                      {g}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>ID card type</Label>
+              <Select
+                value={idCardType || undefined}
+                onValueChange={(v) => setIdCardType(v as IdCardType)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select ID type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ID_CARD_TYPES.map((t) => (
+                    <SelectItem key={t.value} value={t.value}>
+                      {t.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="id_card_number">ID card number</Label>
+              <Input
+                id="id_card_number"
+                name="id_card_number"
+                defaultValue={member?.id_card_number ?? ""}
+                required
+                placeholder="Enter ID number"
+              />
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="date_of_birth">Date of birth</Label>
               <Input
                 id="date_of_birth"
                 name="date_of_birth"
                 type="date"
-                defaultValue={member?.date_of_birth ?? ""}
+                value={dob}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setDob(value);
+                  const computed = calcAge(value);
+                  setAge(computed == null ? "" : String(computed));
+                }}
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="age">Age (years)</Label>
+              <Input
+                id="age"
+                name="age"
+                type="number"
+                min={0}
+                max={120}
+                placeholder="Or enter age"
+                value={age}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setAge(value);
+                  const n = Number(value);
+                  if (value !== "" && Number.isInteger(n) && n >= 0 && n <= 120) {
+                    setDob(ageToDob(n));
+                  }
+                }}
+              />
+              <p className="text-[11px] text-muted-foreground">Enter DOB or age — either one works.</p>
             </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="contact">Contact details</Label>
             <Input id="contact" name="contact" defaultValue={member?.contact ?? ""} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="address">Address</Label>
+            <Textarea
+              id="address"
+              name="address"
+              rows={2}
+              defaultValue={member?.address ?? ""}
+              placeholder="Residential address"
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="photo">Photo</Label>
@@ -385,6 +636,7 @@ function MemberDialog({ familyId, member }: { familyId: string; member?: Member 
             <Label htmlFor="remarks">Remarks</Label>
             <Textarea id="remarks" name="remarks" rows={2} defaultValue={member?.remarks ?? ""} />
           </div>
+          </DialogBody>
           <DialogFooter>
             <Button type="submit" disabled={save.isPending}>
               {save.isPending ? "Saving…" : "Save member"}

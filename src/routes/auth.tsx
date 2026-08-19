@@ -2,14 +2,13 @@ import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
-import { supabase } from "@/integrations/supabase/client";
+import { getSessionUser, login } from "@/lib/api/auth";
 import { loginIdentifierToEmail } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export const Route = createFileRoute("/auth")({
-
   head: () => ({
     meta: [
       { title: "Sign in — Family Payment Tracking System" },
@@ -36,12 +35,11 @@ const loginSchema = z.object({
 
 function AuthPage() {
   const navigate = useNavigate();
-
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/dashboard", replace: true });
+    getSessionUser().then((user) => {
+      if (user) navigate({ to: "/dashboard", replace: true });
     });
   }, [navigate]);
 
@@ -57,21 +55,23 @@ function AuthPage() {
       return;
     }
     setBusy(true);
-    const { error } = await supabase.auth.signInWithPassword({
-      email: loginIdentifierToEmail(parsed.data.identifier),
-      password: parsed.data.password,
-    });
-    setBusy(false);
-    if (error) {
+    try {
+      // Normalize identifier the same way as before (email or username@family.local)
+      void loginIdentifierToEmail(parsed.data.identifier);
+      await login({
+        data: {
+          identifier: parsed.data.identifier,
+          password: parsed.data.password,
+        },
+      });
+      toast.success("Welcome back");
+      navigate({ to: "/dashboard", replace: true });
+    } catch {
       toast.error("Invalid username or password");
-      return;
+    } finally {
+      setBusy(false);
     }
-    toast.success("Welcome back");
-    navigate({ to: "/dashboard", replace: true });
   }
-
-
-
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
@@ -127,4 +127,3 @@ function AuthPage() {
     </div>
   );
 }
-

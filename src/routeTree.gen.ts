@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedAdminsRouteImport } from './routes/_authenticated/admins'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedDuesRouteImport } from './routes/_authenticated/dues'
 import { Route as AuthenticatedExpensesRouteImport } from './routes/_authenticated/expenses'
 import { Route as AuthenticatedFamilyRouteImport } from './routes/_authenticated/family'
 import { Route as AuthenticatedPaymentsRouteImport } from './routes/_authenticated/payments'
@@ -21,6 +22,7 @@ import { Route as AuthenticatedReportsRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedFamiliesIndexRouteImport } from './routes/_authenticated/families.index'
 import { Route as AuthenticatedFamiliesIdRouteImport } from './routes/_authenticated/families.$id'
 import { Route as AuthenticatedVouchersIdRouteImport } from './routes/_authenticated/vouchers.$id'
+import { Route as ApiFilesSplatRouteImport } from './routes/api/files.$'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -44,6 +46,11 @@ const AuthenticatedAdminsRoute = AuthenticatedAdminsRouteImport.update({
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDuesRoute = AuthenticatedDuesRouteImport.update({
+  id: '/dues',
+  path: '/dues',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedExpensesRoute = AuthenticatedExpensesRouteImport.update({
@@ -82,18 +89,25 @@ const AuthenticatedVouchersIdRoute = AuthenticatedVouchersIdRouteImport.update({
   path: '/vouchers/$id',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const ApiFilesSplatRoute = ApiFilesSplatRouteImport.update({
+  id: '/api/files/$',
+  path: '/api/files/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/admins': typeof AuthenticatedAdminsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/dues': typeof AuthenticatedDuesRoute
   '/expenses': typeof AuthenticatedExpensesRoute
   '/family': typeof AuthenticatedFamilyRoute
   '/payments': typeof AuthenticatedPaymentsRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/families/$id': typeof AuthenticatedFamiliesIdRoute
   '/vouchers/$id': typeof AuthenticatedVouchersIdRoute
+  '/api/files/$': typeof ApiFilesSplatRoute
   '/families/': typeof AuthenticatedFamiliesIndexRoute
 }
 export interface FileRoutesByTo {
@@ -101,12 +115,14 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/admins': typeof AuthenticatedAdminsRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/dues': typeof AuthenticatedDuesRoute
   '/expenses': typeof AuthenticatedExpensesRoute
   '/family': typeof AuthenticatedFamilyRoute
   '/payments': typeof AuthenticatedPaymentsRoute
   '/reports': typeof AuthenticatedReportsRoute
   '/families/$id': typeof AuthenticatedFamiliesIdRoute
   '/vouchers/$id': typeof AuthenticatedVouchersIdRoute
+  '/api/files/$': typeof ApiFilesSplatRoute
   '/families': typeof AuthenticatedFamiliesIndexRoute
 }
 export interface FileRoutesById {
@@ -116,12 +132,14 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/admins': typeof AuthenticatedAdminsRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/dues': typeof AuthenticatedDuesRoute
   '/_authenticated/expenses': typeof AuthenticatedExpensesRoute
   '/_authenticated/family': typeof AuthenticatedFamilyRoute
   '/_authenticated/payments': typeof AuthenticatedPaymentsRoute
   '/_authenticated/reports': typeof AuthenticatedReportsRoute
   '/_authenticated/families/$id': typeof AuthenticatedFamiliesIdRoute
   '/_authenticated/vouchers/$id': typeof AuthenticatedVouchersIdRoute
+  '/api/files/$': typeof ApiFilesSplatRoute
   '/_authenticated/families/': typeof AuthenticatedFamiliesIndexRoute
 }
 export interface FileRouteTypes {
@@ -131,12 +149,14 @@ export interface FileRouteTypes {
     | '/auth'
     | '/admins'
     | '/dashboard'
+    | '/dues'
     | '/expenses'
     | '/family'
     | '/payments'
     | '/reports'
     | '/families/$id'
     | '/vouchers/$id'
+    | '/api/files/$'
     | '/families/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -144,12 +164,14 @@ export interface FileRouteTypes {
     | '/auth'
     | '/admins'
     | '/dashboard'
+    | '/dues'
     | '/expenses'
     | '/family'
     | '/payments'
     | '/reports'
     | '/families/$id'
     | '/vouchers/$id'
+    | '/api/files/$'
     | '/families'
   id:
     | '__root__'
@@ -158,12 +180,14 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/admins'
     | '/_authenticated/dashboard'
+    | '/_authenticated/dues'
     | '/_authenticated/expenses'
     | '/_authenticated/family'
     | '/_authenticated/payments'
     | '/_authenticated/reports'
     | '/_authenticated/families/$id'
     | '/_authenticated/vouchers/$id'
+    | '/api/files/$'
     | '/_authenticated/families/'
   fileRoutesById: FileRoutesById
 }
@@ -171,6 +195,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiFilesSplatRoute: typeof ApiFilesSplatRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -208,6 +233,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/dues': {
+      id: '/_authenticated/dues'
+      path: '/dues'
+      fullPath: '/dues'
+      preLoaderRoute: typeof AuthenticatedDuesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/expenses': {
@@ -259,12 +291,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedVouchersIdRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/files/$': {
+      id: '/api/files/$'
+      path: '/api/files/$'
+      fullPath: '/api/files/$'
+      preLoaderRoute: typeof ApiFilesSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdminsRoute: typeof AuthenticatedAdminsRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedDuesRoute: typeof AuthenticatedDuesRoute
   AuthenticatedExpensesRoute: typeof AuthenticatedExpensesRoute
   AuthenticatedFamilyRoute: typeof AuthenticatedFamilyRoute
   AuthenticatedPaymentsRoute: typeof AuthenticatedPaymentsRoute
@@ -277,6 +317,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdminsRoute: AuthenticatedAdminsRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedDuesRoute: AuthenticatedDuesRoute,
   AuthenticatedExpensesRoute: AuthenticatedExpensesRoute,
   AuthenticatedFamilyRoute: AuthenticatedFamilyRoute,
   AuthenticatedPaymentsRoute: AuthenticatedPaymentsRoute,
@@ -293,6 +334,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiFilesSplatRoute: ApiFilesSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

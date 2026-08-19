@@ -1,47 +1,36 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { getMyFamily, getMyRole, getSessionUser } from "@/lib/api/auth";
+import { uploadFileFn } from "@/lib/api/files";
+import {
+  FAMILY_EMAIL_DOMAIN,
+  calcAge,
+  formatMoney,
+  loginIdentifierToEmail,
+} from "@/lib/auth-utils";
 
-export const FAMILY_EMAIL_DOMAIN = "family.local";
-
-/** Family logins use a username; we derive a deterministic login address from it. */
-export function loginIdentifierToEmail(identifier: string) {
-  const trimmed = identifier.trim().toLowerCase();
-  if (trimmed.includes("@")) return trimmed;
-  return `${trimmed.replace(/[^a-z0-9._-]/g, "")}@${FAMILY_EMAIL_DOMAIN}`;
-}
+export { FAMILY_EMAIL_DOMAIN, calcAge, formatMoney, loginIdentifierToEmail };
+export type { AppRole } from "@/lib/api/auth";
 
 export function useAuthUser() {
   return useQuery({
     queryKey: ["auth-user"],
-    queryFn: async () => {
-      const { data } = await supabase.auth.getUser();
-      return data.user ?? null;
-    },
+    queryFn: async () => getSessionUser(),
   });
 }
-
-export type AppRole = "admin" | "family";
 
 export function useRole() {
   const { data: user, isLoading: userLoading } = useAuthUser();
   const roleQuery = useQuery({
     queryKey: ["role", user?.id],
     enabled: !!user,
-    queryFn: async (): Promise<AppRole> => {
-      const { data, error } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user!.id);
-      if (error) throw error;
-      return (data ?? []).some((r) => r.role === "admin") ? "admin" : "family";
-    },
+    queryFn: async () => getMyRole(),
   });
 
   return {
     user: user ?? null,
     role: roleQuery.data,
     isAdmin: roleQuery.data === "admin",
-    loading: userLoading || roleQuery.isLoading,
+    loading: userLoading || (!!user && roleQuery.isLoading),
   };
 }
 
@@ -50,32 +39,28 @@ export function useMyFamily() {
   return useQuery({
     queryKey: ["my-family", user?.id],
     enabled: !!user,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("families")
-        .select("*")
-        .eq("wife_user_id", user!.id)
-        .maybeSingle();
-      if (error) throw error;
-      return data;
+    queryFn: async () => getMyFamily(),
+  });
+}
+
+export async function uploadFile(folder: string, file: File) {
+  const buffer = await file.arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
+  const base64 = btoa(binary);
+  return uploadFileFn({
+    data: {
+      folder,
+      filename: file.name,
+      contentType: file.type || undefined,
+      base64,
     },
   });
 }
 
-const BUCKET = "family-files";
-
-export async function uploadFile(path: string, file: File) {
-  const ext = file.name.split(".").pop() ?? "bin";
-  const key = `${path}/${crypto.randomUUID()}.${ext}`;
-  const { error } = await supabase.storage.from(BUCKET).upload(key, file, { upsert: false });
-  if (error) throw error;
-  return key;
-}
-
 export async function getSignedUrl(key: string) {
-  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(key, 60 * 60);
-  if (error) throw error;
-  return data.signedUrl;
+  return `/api/files/${key.split("/").map(encodeURIComponent).join("/")}`;
 }
 
 export function useSignedUrl(key: string | null | undefined) {
@@ -83,22 +68,6 @@ export function useSignedUrl(key: string | null | undefined) {
     queryKey: ["signed-url", key],
     enabled: !!key,
     queryFn: () => getSignedUrl(key!),
-    staleTime: 30 * 60 * 1000,
+    staleTime: Infinity,
   });
-}
-
-export function formatMoney(value: number | string | null | undefined) {
-  const n = Number(value ?? 0);
-  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-export function calcAge(dob: string | null | undefined) {
-  if (!dob) return null;
-  const birth = new Date(dob);
-  if (Number.isNaN(birth.getTime())) return null;
-  const now = new Date();
-  let age = now.getFullYear() - birth.getFullYear();
-  const m = now.getMonth() - birth.getMonth();
-  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--;
-  return age;
 }

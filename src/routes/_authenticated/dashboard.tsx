@@ -1,10 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { AppShell, StatCard } from "@/components/AppShell";
 import { formatMoney, useMyFamily, useRole } from "@/lib/auth";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
+import { getDashboardSummary, listPayments } from "@/lib/api/payments";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
@@ -29,41 +29,12 @@ function Dashboard() {
   const summary = useQuery({
     queryKey: ["summary", isAdmin, myFamily.data?.id],
     enabled: !loading && (isAdmin || !!myFamily.data?.id || myFamily.isFetched),
-    queryFn: async () => {
-      const payments = await supabase.from("payments").select("amount, status, created_at");
-      if (payments.error) throw payments.error;
-      let debit = 0;
-      if (isAdmin) {
-        const expenses = await supabase.from("expenses").select("amount");
-        if (expenses.error) throw expenses.error;
-        debit = (expenses.data ?? []).reduce((sum, e) => sum + Number(e.amount), 0);
-      }
-      const rows = payments.data ?? [];
-      const credit = rows
-        .filter((p) => p.status === "approved")
-        .reduce((sum, p) => sum + Number(p.amount), 0);
-      const pending = rows.filter((p) => p.status === "pending");
-      return {
-        credit,
-        debit,
-        pendingCount: pending.length,
-        pendingAmount: pending.reduce((sum, p) => sum + Number(p.amount), 0),
-        total: rows.length,
-      };
-    },
+    queryFn: () => getDashboardSummary(),
   });
 
   const recent = useQuery({
     queryKey: ["recent-payments"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("payments")
-        .select("id, voucher_no, amount, mode, status, payment_date, family_id")
-        .order("created_at", { ascending: false })
-        .limit(6);
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () => listPayments({ data: { limit: 6 } }),
   });
 
   const s = summary.data;

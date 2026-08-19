@@ -2,7 +2,8 @@ import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { getFamilyById } from "@/lib/api/families";
+import { listPayments } from "@/lib/api/payments";
 import { resetFamilyPassword } from "@/lib/admin.functions";
 import { AppShell } from "@/components/AppShell";
 import { FamilyEditor } from "@/components/family/FamilyEditor";
@@ -30,24 +31,12 @@ function FamilyDetail() {
 
   const family = useQuery({
     queryKey: ["family", id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("families").select("*").eq("id", id).single();
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => getFamilyById({ data: { id } }),
   });
 
   const payments = useQuery({
     queryKey: ["family-payments", id],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("payments")
-        .select("id, voucher_no, amount, status, payment_date, mode")
-        .eq("family_id", id)
-        .order("payment_date", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () => listPayments({ data: { familyId: id } }),
   });
 
   return (
@@ -61,7 +50,7 @@ function FamilyDetail() {
       }
     >
       <div className="space-y-6">
-        <FamilyEditor familyId={id} canEdit />
+        <FamilyEditor familyId={id} canEdit canEditFamilyId />
 
         <section className="surface p-6">
           <h2 className="text-base font-semibold">Login access</h2>

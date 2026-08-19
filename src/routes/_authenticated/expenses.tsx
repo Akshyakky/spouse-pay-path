@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { createExpense, listExpenses } from "@/lib/api/expenses";
 import { AppShell } from "@/components/AppShell";
 import { formatMoney, uploadFile, useRole } from "@/lib/auth";
 import { PrivateFileLink } from "@/components/PrivateImage";
@@ -25,20 +25,14 @@ export const Route = createFileRoute("/_authenticated/expenses")({
 });
 
 function ExpensesPage() {
-  const { isAdmin, user } = useRole();
+  const { isAdmin } = useRole();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
 
   const expenses = useQuery({
     queryKey: ["expenses"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("expenses")
-        .select("*")
-        .order("expense_date", { ascending: false });
-      if (error) throw error;
-      return data ?? [];
-    },
+    enabled: isAdmin,
+    queryFn: () => listExpenses(),
   });
 
   const add = useMutation({
@@ -49,16 +43,16 @@ function ExpensesPage() {
       const file = form.get("attachment") as File | null;
       let key: string | null = null;
       if (file && file.size > 0) key = await uploadFile("expenses", file);
-      const { error } = await supabase.from("expenses").insert({
-        amount,
-        category: String(form.get("category") ?? "").trim() || "General",
-        description: String(form.get("description") ?? "").trim() || null,
-        expense_date:
-          String(form.get("expense_date") ?? "") || new Date().toISOString().slice(0, 10),
-        attachment_url: key,
-        created_by: user?.id ?? null,
+      await createExpense({
+        data: {
+          amount,
+          category: String(form.get("category") ?? "").trim() || "General",
+          description: String(form.get("description") ?? "").trim() || null,
+          expense_date:
+            String(form.get("expense_date") ?? "") || new Date().toISOString().slice(0, 10),
+          attachment_url: key,
+        },
       });
-      if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Expense recorded");
@@ -138,6 +132,9 @@ function ExpensesPage() {
                     <p className="text-xs text-muted-foreground">
                       {e.expense_date}
                       {e.description ? ` · ${e.description}` : ""}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Added by {e.created_by_name ?? "Unknown"}
                     </p>
                     {e.attachment_url ? (
                       <PrivateFileLink path={e.attachment_url} label="View receipt" />

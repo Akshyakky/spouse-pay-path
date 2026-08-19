@@ -8,6 +8,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogBody,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -18,9 +19,26 @@ export type IdCardMember = {
   relationship: string;
   gender: string | null;
   date_of_birth: string | null;
+  blood_group?: string | null;
   contact: string | null;
+  address?: string | null;
   photo_url: string | null;
+  id_card_type?: string | null;
+  id_card_number?: string | null;
 };
+
+const ID_CARD_LABELS: Record<string, string> = {
+  aadhaar: "Aadhaar",
+  pan: "PAN",
+  epic: "EPIC",
+  dl: "DL",
+  ration_card: "Ration Card",
+};
+
+function idCardTypeLabel(type: string | null | undefined) {
+  if (!type) return "ID card";
+  return ID_CARD_LABELS[type] ?? type;
+}
 
 function escapeHtml(value: string) {
   return value
@@ -42,11 +60,14 @@ function buildCardHtml(opts: {
     ["Family ID", familyNo],
     ["Family", familyName],
     ["Gender", member.gender || "—"],
+    [idCardTypeLabel(member.id_card_type), member.id_card_number || "—"],
+    ["Blood group", member.blood_group || "—"],
     [
       "Date of birth",
       member.date_of_birth ? `${member.date_of_birth} (${calcAge(member.date_of_birth)} yrs)` : "—",
     ],
     ["Contact", member.contact || "—"],
+    ["Address", member.address || "—"],
   ];
 
   return `<!doctype html>
@@ -121,11 +142,14 @@ export function MemberIdCard({
     ["Family ID", familyNo],
     ["Family", familyName],
     ["Gender", member.gender || "—"],
+    [idCardTypeLabel(member.id_card_type), member.id_card_number || "—"],
+    ["Blood group", member.blood_group || "—"],
     [
       "Date of birth",
       member.date_of_birth ? `${member.date_of_birth} (${calcAge(member.date_of_birth)} yrs)` : "—",
     ],
     ["Contact", member.contact || "—"],
+    ["Address", member.address || "—"],
   ];
 
   return (
@@ -135,11 +159,12 @@ export function MemberIdCard({
           <IdCard className="mr-2 size-3.5" /> ID card
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Member ID card</DialogTitle>
         </DialogHeader>
 
+        <DialogBody>
         <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
           <div className="bg-primary px-4 py-3 text-primary-foreground">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em]">Family Member ID</p>
@@ -168,6 +193,7 @@ export function MemberIdCard({
             <span>Issued {new Date().toLocaleDateString()}</span>
           </div>
         </div>
+        </DialogBody>
 
         <DialogFooter>
           <Button onClick={print}>

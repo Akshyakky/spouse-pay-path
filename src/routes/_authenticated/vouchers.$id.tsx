@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { getPaymentById } from "@/lib/api/payments";
 import { AppShell } from "@/components/AppShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PrivateFileLink } from "@/components/PrivateImage";
@@ -10,10 +10,10 @@ import { Button } from "@/components/ui/button";
 export const Route = createFileRoute("/_authenticated/vouchers/$id")({
   head: () => ({
     meta: [
-      { title: "Payment voucher — Family Payment Tracking System" },
-      { name: "description", content: "Printable payment voucher with approval details." },
-      { property: "og:title", content: "Payment voucher — Family Payment Tracking System" },
-      { property: "og:description", content: "Printable payment voucher." },
+      { title: "Payment voucher / receipt — Family Payment Tracking System" },
+      { name: "description", content: "Printable payment voucher or official receipt after approval." },
+      { property: "og:title", content: "Payment voucher / receipt — Family Payment Tracking System" },
+      { property: "og:description", content: "Printable payment voucher or receipt." },
       { name: "robots", content: "noindex" },
     ],
   }),
@@ -25,23 +25,16 @@ function VoucherPage() {
 
   const voucher = useQuery({
     queryKey: ["voucher", id],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("payments").select("*").eq("id", id).single();
-      if (error) throw error;
-      const family = await supabase
-        .from("families")
-        .select("family_no, family_name, contact_phone")
-        .eq("id", data.family_id)
-        .maybeSingle();
-      return { payment: data, family: family.data };
-    },
+    queryFn: () => getPaymentById({ data: { id } }),
   });
 
   const p = voucher.data?.payment;
+  const isReceipt = p?.status === "approved";
+  const docTitle = isReceipt ? "Payment receipt" : "Payment voucher";
 
   return (
     <AppShell
-      title="Payment voucher"
+      title={docTitle}
       description={p?.voucher_no}
       actions={
         <div className="flex gap-2 print:hidden">
@@ -58,14 +51,29 @@ function VoucherPage() {
         <article className="surface mx-auto max-w-2xl p-8">
           <header className="flex items-start justify-between gap-4 border-b border-border pb-4">
             <div>
-              <h2 className="font-display text-xl font-semibold">Payment voucher</h2>
+              <h2 className="font-display text-xl font-semibold">{docTitle}</h2>
               <p className="text-sm text-muted-foreground">{p.voucher_no}</p>
+              {isReceipt ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Official acknowledgement of payment received
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Payment submitted for review — not a final receipt yet
+                </p>
+              )}
             </div>
             <StatusBadge status={p.status} />
           </header>
 
           <dl className="mt-6 grid gap-4 sm:grid-cols-2 text-sm">
-            <Row label="Family" value={`${voucher.data?.family?.family_no ?? ""} ${voucher.data?.family?.family_name ?? ""}`} />
+            <Row
+              label="Family"
+              value={`${voucher.data?.family?.family_no ?? ""} ${voucher.data?.family?.family_name ?? ""}`}
+            />
+            {voucher.data?.dueTitle ? (
+              <Row label="Toward due" value={voucher.data.dueTitle} />
+            ) : null}
             <Row label="Payment date" value={p.payment_date} />
             <Row label="Amount" value={formatMoney(p.amount)} />
             <Row label="Mode" value={p.mode === "cash" ? "Cash" : "Online transfer"} />
@@ -73,7 +81,7 @@ function VoucherPage() {
             <Row label="Paid by" value={p.paid_by ?? "—"} />
             <Row label="Remarks" value={p.remarks ?? "—"} />
             <Row
-              label="Approved on"
+              label={isReceipt ? "Receipt issued on" : "Approved on"}
               value={p.approved_at ? new Date(p.approved_at).toLocaleString() : "Pending"}
             />
           </dl>
@@ -94,7 +102,7 @@ function VoucherPage() {
           </footer>
         </article>
       ) : (
-        <p className="text-sm text-muted-foreground">Loading voucher…</p>
+        <p className="text-sm text-muted-foreground">Loading {isReceipt ? "receipt" : "voucher"}…</p>
       )}
     </AppShell>
   );

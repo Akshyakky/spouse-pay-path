@@ -3,7 +3,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { listFamiliesLite } from "@/lib/api/families";
+import { createPayment, decidePayment, listPayments } from "@/lib/api/payments";
 import { AppShell } from "@/components/AppShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PrivateFileLink } from "@/components/PrivateImage";
@@ -17,6 +18,7 @@ import {
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogBody,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -44,7 +46,7 @@ export const Route = createFileRoute("/_authenticated/payments")({
 type StatusFilter = "all" | "pending" | "approved" | "rejected";
 
 function PaymentsPage() {
-  const { isAdmin, user } = useRole();
+  const { isAdmin } = useRole();
   const myFamily = useMyFamily();
   const [status, setStatus] = useState<StatusFilter>("all");
   const queryClient = useQueryClient();
@@ -52,28 +54,12 @@ function PaymentsPage() {
   const families = useQuery({
     queryKey: ["families-lite"],
     enabled: isAdmin,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("families")
-        .select("id, family_no, family_name")
-        .order("family_no");
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () => listFamiliesLite(),
   });
 
   const payments = useQuery({
     queryKey: ["payments", status],
-    queryFn: async () => {
-      let query = supabase
-        .from("payments")
-        .select("*")
-        .order("payment_date", { ascending: false });
-      if (status !== "all") query = query.eq("status", status);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data ?? [];
-    },
+    queryFn: () => listPayments({ data: { status } }),
   });
 
   const decide = useMutation({
@@ -86,21 +72,17 @@ function PaymentsPage() {
       next: "approved" | "rejected";
       remarks?: string;
     }) => {
-      const { error } = await supabase
-        .from("payments")
-        .update({
-          status: next,
-          admin_remarks: remarks ?? null,
-          approved_by: user?.id ?? null,
-          approved_at: new Date().toISOString(),
-        })
-        .eq("id", id);
-      if (error) throw error;
+      await decidePayment({
+        data: { id, status: next, remarks: remarks ?? null },
+      });
     },
     onSuccess: () => {
       toast.success("Payment updated");
       queryClient.invalidateQueries({ queryKey: ["payments"] });
       queryClient.invalidateQueries({ queryKey: ["summary"] });
+      queryClient.invalidateQueries({ queryKey: ["dues-demands"] });
+      queryClient.invalidateQueries({ queryKey: ["dues-demand-families"] });
+      queryClient.invalidateQueries({ queryKey: ["dues-family"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -195,6 +177,13 @@ function PaymentsPage() {
                     </Button>
                   </div>
                 ) : null}
+                {p.status === "approved" ? (
+                  <Button asChild size="sm" variant="outline">
+                    <Link to="/vouchers/$id" params={{ id: p.id }}>
+                      View receipt
+                    </Link>
+                  </Button>
+                ) : null}
               </div>
             </article>
           ))}
@@ -211,7 +200,6 @@ function PaymentDialog({ familyId }: { familyId: string }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"cash" | "online">("online");
   const queryClient = useQueryClient();
-  const { user } = useRole();
 
   const submit = useMutation({
     mutationFn: async (form: FormData) => {
@@ -227,21 +215,19 @@ function PaymentDialog({ familyId }: { familyId: string }) {
       let screenshotKey: string | null = null;
       if (file && file.size > 0) screenshotKey = await uploadFile(`${familyId}/payments`, file);
 
-      if (!user) throw new Error("You must be signed in to submit a payment");
-
-      const { error } = await supabase.from("payments").insert({
-        family_id: familyId,
-        created_by: user.id,
-        status: "pending",
-        amount,
-        mode,
-        payment_date: String(form.get("payment_date") ?? "") || new Date().toISOString().slice(0, 10),
-        txn_ref: txnRef || null,
-        paid_by: String(form.get("paid_by") ?? "").trim() || null,
-        remarks: String(form.get("remarks") ?? "").trim() || null,
-        screenshot_url: screenshotKey,
+      await createPayment({
+        data: {
+          family_id: familyId,
+          amount,
+          mode,
+          payment_date:
+            String(form.get("payment_date") ?? "") || new Date().toISOString().slice(0, 10),
+          txn_ref: txnRef || null,
+          paid_by: String(form.get("paid_by") ?? "").trim() || null,
+          remarks: String(form.get("remarks") ?? "").trim() || null,
+          screenshot_url: screenshotKey,
+        },
       });
-      if (error) throw error;
     },
     onSuccess: () => {
       toast.success("Payment submitted for approval");
@@ -259,17 +245,18 @@ function PaymentDialog({ familyId }: { familyId: string }) {
           <Plus className="mr-2 size-4" /> Add payment
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Record a payment</DialogTitle>
         </DialogHeader>
         <form
-          className="space-y-4"
+          className="flex min-h-0 flex-1 flex-col"
           onSubmit={(e) => {
             e.preventDefault();
             submit.mutate(new FormData(e.currentTarget));
           }}
         >
+          <DialogBody className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="amount">Amount</Label>
@@ -318,6 +305,7 @@ function PaymentDialog({ familyId }: { familyId: string }) {
             <Label htmlFor="remarks">Remarks</Label>
             <Textarea id="remarks" name="remarks" rows={2} />
           </div>
+          </DialogBody>
           <DialogFooter>
             <Button type="submit" disabled={submit.isPending}>
               {submit.isPending ? "Submitting…" : "Submit payment"}
