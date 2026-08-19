@@ -358,18 +358,6 @@ The wife shall be able to enter and update:
 
 This system will allow one family to be managed through a single wife login. She can add husband, daughter, and son details under one family ID, submit payment records, and upload supporting files. The admin will approve payments, enter expenses, and generate financial reports with credit and debit tracking.
 
-This project was built with [Lovable](https://lovable.dev).
-
-**Live app**: https://spouse-pay-path.lovable.app
-
-## Build with Lovable
-
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/834bb551-305e-4173-8a9c-513a2af63731).
-
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
-
 ## Development
 
 Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).

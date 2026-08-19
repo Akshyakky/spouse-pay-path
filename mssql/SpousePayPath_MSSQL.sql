@@ -1,7 +1,7 @@
 /*
 ================================================================================
   Spouse Pay Path - Microsoft SQL Server Script
-  Converted from Supabase (PostgreSQL) schema
+  Microsoft SQL Server schema
 ================================================================================
   Run in SSMS against your target server.
   Compatible with: SQL Server 2016+ / Azure SQL Database
@@ -85,11 +85,10 @@ GO
 
 /*------------------------------------------------------------------------------
   3. TABLES
-  Note: Supabase auth.users is replaced by dbo.users for MS SQL Server.
-  PostgreSQL enums are enforced via CHECK constraints.
+  Enums are enforced via CHECK constraints.
 ------------------------------------------------------------------------------*/
 
--- Auth users (replaces Supabase auth.users)
+-- Auth users
 CREATE TABLE dbo.users (
     id               UNIQUEIDENTIFIER NOT NULL
         CONSTRAINT PK_users PRIMARY KEY
@@ -354,7 +353,7 @@ GO
 
 /*------------------------------------------------------------------------------
   5. HELPER FUNCTIONS
-  Equivalents of Supabase: has_role / is_family_owner
+  Role helpers: has_role / is_family_owner
 ------------------------------------------------------------------------------*/
 CREATE FUNCTION dbo.fn_has_role
 (
@@ -398,7 +397,7 @@ GO
   6. TRIGGERS
 ------------------------------------------------------------------------------*/
 
--- Auto-create profile + role when a user is inserted (Supabase handle_new_user)
+-- Auto-create profile + role when a user is inserted
 CREATE TRIGGER dbo.trg_users_after_insert
 ON dbo.users
 AFTER INSERT
