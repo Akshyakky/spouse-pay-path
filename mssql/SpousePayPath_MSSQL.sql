@@ -172,7 +172,7 @@ CREATE TABLE dbo.family_members (
         CONSTRAINT PK_family_members PRIMARY KEY
         CONSTRAINT DF_family_members_id DEFAULT NEWSEQUENTIALID(),
     family_id        UNIQUEIDENTIFIER NOT NULL,
-    relationship     NVARCHAR(20)     NOT NULL,
+    relationship     NVARCHAR(40)     NOT NULL,
     full_name        NVARCHAR(200)    NOT NULL,
     gender           NVARCHAR(30)     NULL,
     date_of_birth    DATE             NULL,
@@ -190,7 +190,14 @@ CREATE TABLE dbo.family_members (
     updated_at       DATETIMEOFFSET(7) NOT NULL
         CONSTRAINT DF_family_members_updated_at DEFAULT (SYSUTCDATETIME()),
     CONSTRAINT CK_family_members_relationship
-        CHECK (relationship IN (N'wife', N'husband', N'daughter', N'son', N'other')),
+        CHECK (relationship IN (
+          N'wife', N'husband',
+          N'daughter', N'son',
+          N'daughter_in_law', N'son_in_law',
+          N'granddaughter', N'grandson',
+          N'great_granddaughter', N'great_grandson',
+          N'other'
+        )),
     CONSTRAINT CK_family_members_blood_group
         CHECK (
           blood_group IS NULL

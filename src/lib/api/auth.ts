@@ -24,7 +24,7 @@ export const login = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const bcrypt = (await import("bcryptjs")).default;
     const { queryOne } = await import("@/lib/db");
-    const { getAppSession } = await import("@/lib/session");
+    const { startSession } = await import("@/lib/session");
 
     const email = loginIdentifierToEmail(data.identifier);
     const user = await queryOne<{
@@ -55,22 +55,19 @@ export const login = createServerFn({ method: "POST" })
       fullName: user.full_name,
     };
 
-    const session = await getAppSession();
-    await session.update({ user: sessionUser });
+    await startSession(sessionUser);
     return { user: sessionUser };
   });
 
 export const logout = createServerFn({ method: "POST" }).handler(async () => {
-  const { getAppSession } = await import("@/lib/session");
-  const session = await getAppSession();
-  await session.clear();
+  const { endSession } = await import("@/lib/session");
+  await endSession();
   return { ok: true };
 });
 
 export const getSessionUser = createServerFn({ method: "GET" }).handler(async () => {
-  const { getAppSession } = await import("@/lib/session");
-  const session = await getAppSession();
-  return session.data.user ?? null;
+  const { getSessionUser: readSessionUser } = await import("@/lib/session");
+  return readSessionUser();
 });
 
 export const getMyRole = createServerFn({ method: "GET" })

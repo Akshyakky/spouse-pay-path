@@ -3,7 +3,7 @@ import { createReadStream } from "node:fs";
 import { access, constants } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
-import { getAppSession } from "@/lib/session";
+import { getSessionUser } from "@/lib/session";
 
 function uploadsRoot() {
   return path.resolve(process.cwd(), process.env.UPLOADS_DIR || "uploads");
@@ -23,8 +23,8 @@ export const Route = createFileRoute("/api/files/$")({
   server: {
     handlers: {
       GET: async ({ params }) => {
-        const session = await getAppSession();
-        if (!session.data.user?.id) {
+        const user = await getSessionUser();
+        if (!user) {
           return new Response("Unauthorized", { status: 401 });
         }
 

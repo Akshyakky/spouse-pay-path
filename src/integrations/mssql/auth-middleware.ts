@@ -8,12 +8,10 @@ export type AuthContext = {
 };
 
 export const requireAuth = createMiddleware({ type: "function" }).server(async ({ next }) => {
-  const { getAppSession } = await import("@/lib/session");
+  const { requireSessionUser } = await import("@/lib/session");
   const { queryOne } = await import("@/lib/db");
 
-  const session = await getAppSession();
-  const user = session.data.user;
-  if (!user?.id) throw new Error("Unauthorized");
+  const user = await requireSessionUser();
 
   const roleRow = await queryOne<{ role: string }>(
     `SELECT TOP 1 role FROM dbo.user_roles WHERE user_id = @userId AND role = N'admin'`,

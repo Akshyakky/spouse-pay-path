@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireAuth, requireAdmin } from "@/integrations/mssql/auth-middleware";
 import { FAMILY_EMAIL_DOMAIN } from "@/lib/auth-utils";
+import { MEMBER_RELATIONSHIP_VALUES } from "@/lib/relationships";
 import type { MemberRow } from "@/lib/api/mappers";
 
 export type { MemberRow };
@@ -279,7 +280,7 @@ export const listFamilyMembers = createServerFn({ method: "GET" })
 
 const memberPayload = z.object({
   family_id: z.string().uuid(),
-  relationship: z.enum(["wife", "husband", "daughter", "son", "other"]),
+  relationship: z.enum(MEMBER_RELATIONSHIP_VALUES),
   full_name: z.string().trim().min(2).max(200),
   gender: z.enum(["Male", "Female", "Other"]),
   id_card_type: z.enum(["aadhaar", "pan", "epic", "dl", "ration_card"]),

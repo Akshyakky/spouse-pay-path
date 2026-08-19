@@ -1,6 +1,6 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -42,13 +42,19 @@ export function AppShell({
   actions?: ReactNode | undefined;
   children: ReactNode;
 }) {
-  const { isAdmin, user, role } = useRole();
+  const { isAdmin, user, role, loading } = useRole();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [open, setOpen] = useState(false);
 
   const items = NAV.filter((item) => (item.admin ? isAdmin : item.family ? !isAdmin : true));
+
+  useEffect(() => {
+    if (loading || user) return;
+    queryClient.clear();
+    navigate({ to: "/auth", replace: true });
+  }, [loading, user, navigate, queryClient]);
 
   async function handleSignOut() {
     await queryClient.cancelQueries();

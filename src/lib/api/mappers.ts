@@ -1,3 +1,4 @@
+import type { MemberRelationship } from "@/lib/relationships";
 import { toDateString, toIsoString } from "@/lib/db-utils";
 
 export function mapFamily(row: Record<string, unknown>) {
@@ -25,7 +26,7 @@ export type IdCardType = "aadhaar" | "pan" | "epic" | "dl" | "ration_card";
 export type MemberRow = {
   id: string;
   family_id: string;
-  relationship: "wife" | "husband" | "daughter" | "son" | "other";
+  relationship: MemberRelationship;
   full_name: string;
   gender: string | null;
   date_of_birth: string | null;

@@ -12,6 +12,7 @@ import {
 } from "@/lib/api/dues";
 import { createPayment } from "@/lib/api/payments";
 import { AppShell } from "@/components/AppShell";
+import { PaidBySelect } from "@/components/PaidBySelect";
 import { formatMoney, uploadFile, useMyFamily, useRole } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -516,7 +517,7 @@ function PayDueDialog({ familyId, due }: { familyId: string; due: FamilyDueRow }
             ) : null}
             <div className="space-y-2">
               <Label htmlFor={`paid_by_${due.id}`}>Paid by</Label>
-              <Input id={`paid_by_${due.id}`} name="paid_by" />
+              <PaidBySelect familyId={familyId} id={`paid_by_${due.id}`} />
             </div>
             <div className="space-y-2">
               <Label htmlFor={`remarks_${due.id}`}>Remarks</Label>

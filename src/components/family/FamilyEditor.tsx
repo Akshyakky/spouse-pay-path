@@ -14,6 +14,11 @@ import {
 } from "@/lib/api/families";
 import type { IdCardType } from "@/lib/api/mappers";
 import { calcAge, uploadFile } from "@/lib/auth";
+import {
+  MEMBER_RELATIONSHIPS,
+  relationshipLabel,
+  type MemberRelationship,
+} from "@/lib/relationships";
 import { PrivateImage } from "@/components/PrivateImage";
 import { MemberIdCard } from "@/components/family/MemberIdCard";
 import { Button } from "@/components/ui/button";
@@ -49,17 +54,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type Relationship = "wife" | "husband" | "daughter" | "son" | "other";
-
 type Member = MemberRow;
-
-const RELATIONSHIPS: { value: Relationship; label: string }[] = [
-  { value: "wife", label: "Wife" },
-  { value: "husband", label: "Husband" },
-  { value: "daughter", label: "Daughter" },
-  { value: "son", label: "Son" },
-  { value: "other", label: "Other dependent" },
-];
 
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"] as const;
 
@@ -288,9 +283,7 @@ export function FamilyEditor({
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="truncate font-medium">{member.full_name}</p>
-                  <Badge variant="secondary" className="capitalize">
-                    {member.relationship}
-                  </Badge>
+                  <Badge variant="secondary">{relationshipLabel(member.relationship)}</Badge>
                   {member.is_head ? <Badge>Head of family</Badge> : null}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -384,7 +377,7 @@ function ageToDob(age: number): string {
 
 function MemberDialog({ familyId, member }: { familyId: string; member?: Member }) {
   const [open, setOpen] = useState(false);
-  const [relationship, setRelationship] = useState<Relationship>(member?.relationship ?? "wife");
+  const [relationship, setRelationship] = useState<MemberRelationship>(member?.relationship ?? "wife");
   const [gender, setGender] = useState<string>(member?.gender ?? "");
   const [idCardType, setIdCardType] = useState<IdCardType | "">(member?.id_card_type ?? "");
   const [bloodGroup, setBloodGroup] = useState<string>(member?.blood_group ?? "");
@@ -493,12 +486,12 @@ function MemberDialog({ familyId, member }: { familyId: string; member?: Member 
           <DialogBody className="space-y-4">
           <div className="space-y-2">
             <Label>Relationship</Label>
-            <Select value={relationship} onValueChange={(v) => setRelationship(v as Relationship)}>
+            <Select value={relationship} onValueChange={(v) => setRelationship(v as MemberRelationship)}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {RELATIONSHIPS.map((r) => (
+                {MEMBER_RELATIONSHIPS.map((r) => (
                   <SelectItem key={r.value} value={r.value}>
                     {r.label}
                   </SelectItem>

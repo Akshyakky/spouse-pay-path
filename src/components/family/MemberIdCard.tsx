@@ -2,6 +2,7 @@ import { useState } from "react";
 import { IdCard, Printer } from "lucide-react";
 import { PrivateImage } from "@/components/PrivateImage";
 import { calcAge, useSignedUrl } from "@/lib/auth";
+import { relationshipLabel } from "@/lib/relationships";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -56,7 +57,7 @@ function buildCardHtml(opts: {
 }) {
   const { member, familyNo, familyName, photoUrl } = opts;
   const rows: [string, string][] = [
-    ["Relationship", member.relationship],
+    ["Relationship", relationshipLabel(member.relationship)],
     ["Family ID", familyNo],
     ["Family", familyName],
     ["Gender", member.gender || "—"],
@@ -138,7 +139,7 @@ export function MemberIdCard({
   };
 
   const details: [string, string][] = [
-    ["Relationship", member.relationship],
+    ["Relationship", relationshipLabel(member.relationship)],
     ["Family ID", familyNo],
     ["Family", familyName],
     ["Gender", member.gender || "—"],

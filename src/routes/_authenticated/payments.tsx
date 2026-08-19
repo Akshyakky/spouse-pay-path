@@ -8,6 +8,7 @@ import { createPayment, decidePayment, listPayments } from "@/lib/api/payments";
 import { AppShell } from "@/components/AppShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PrivateFileLink } from "@/components/PrivateImage";
+import { PaidBySelect } from "@/components/PaidBySelect";
 import { formatMoney, uploadFile, useMyFamily, useRole } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -299,7 +300,7 @@ function PaymentDialog({ familyId }: { familyId: string }) {
           ) : null}
           <div className="space-y-2">
             <Label htmlFor="paid_by">Paid by</Label>
-            <Input id="paid_by" name="paid_by" placeholder="Family member name" />
+            <PaidBySelect familyId={familyId} id="paid_by" />
           </div>
           <div className="space-y-2">
             <Label htmlFor="remarks">Remarks</Label>
