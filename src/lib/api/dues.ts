@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireAuth, requireAdmin } from "@/integrations/mssql/auth-middleware";
+import { requireAuth, requireAdmin } from "@/integrations/auth-middleware";
 import { toDateString } from "@/lib/db-utils";
 
 export type FamilyDueRow = {
@@ -49,17 +49,17 @@ const dueSelect = `
     d.id, d.demand_id, d.family_id, d.amount_due,
     pd.title, pd.description, pd.due_date, pd.status AS demand_status,
     f.family_no, f.family_name,
-    ISNULL((
-      SELECT SUM(p.amount) FROM dbo.payments p
-      WHERE p.family_due_id = d.id AND p.status = N'approved'
+    COALESCE((
+      SELECT SUM(p.amount) FROM payments p
+      WHERE p.family_due_id = d.id AND p.status = 'approved'
     ), 0) AS paid_approved,
-    ISNULL((
-      SELECT SUM(p.amount) FROM dbo.payments p
-      WHERE p.family_due_id = d.id AND p.status = N'pending'
+    COALESCE((
+      SELECT SUM(p.amount) FROM payments p
+      WHERE p.family_due_id = d.id AND p.status = 'pending'
     ), 0) AS paid_pending
-  FROM dbo.family_dues d
-  INNER JOIN dbo.payment_demands pd ON pd.id = d.demand_id
-  INNER JOIN dbo.families f ON f.id = d.family_id
+  FROM family_dues d
+  INNER JOIN payment_demands pd ON pd.id = d.demand_id
+  INNER JOIN families f ON f.id = d.family_id
 `;
 
 export const listDemands = createServerFn({ method: "GET" })
@@ -72,17 +72,17 @@ export const listDemands = createServerFn({ method: "GET" })
       const rows = await query(
         `SELECT
             pd.id, pd.title, pd.description, pd.amount_per_family, pd.due_date, pd.status, pd.created_at,
-            (SELECT COUNT(*) FROM dbo.family_dues d WHERE d.demand_id = pd.id) AS family_count,
-            ISNULL((
+            (SELECT COUNT(*) FROM family_dues d WHERE d.demand_id = pd.id) AS family_count,
+            COALESCE((
               SELECT SUM(p.amount)
-              FROM dbo.payments p
-              INNER JOIN dbo.family_dues d ON d.id = p.family_due_id
-              WHERE d.demand_id = pd.id AND p.status = N'approved'
+              FROM payments p
+              INNER JOIN family_dues d ON d.id = p.family_due_id
+              WHERE d.demand_id = pd.id AND p.status = 'approved'
             ), 0) AS collected,
-            ISNULL((
-              SELECT SUM(d.amount_due) FROM dbo.family_dues d WHERE d.demand_id = pd.id
+            COALESCE((
+              SELECT SUM(d.amount_due) FROM family_dues d WHERE d.demand_id = pd.id
             ), 0) AS total_due
-         FROM dbo.payment_demands pd
+         FROM payment_demands pd
          ORDER BY pd.created_at DESC`,
       );
       return rows.map((row) => {
@@ -110,7 +110,7 @@ export const listDemands = createServerFn({ method: "GET" })
     const rows = await query(
       `${dueSelect}
        WHERE d.family_id = @familyId
-       ORDER BY CASE WHEN pd.status = N'open' THEN 0 ELSE 1 END, pd.created_at DESC`,
+       ORDER BY CASE WHEN pd.status = 'open' THEN 0 ELSE 1 END, pd.created_at DESC`,
       { familyId },
     );
     return rows.map(mapFamilyDue);
@@ -145,15 +145,13 @@ export const createDemand = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { queryOne, execute, query } = await import("@/lib/db");
 
-    const families = await query<{ id: string }>(`SELECT id FROM dbo.families ORDER BY family_no`);
+    const families = await query<{ id: string }>(`SELECT id FROM families ORDER BY family_no`);
     if (families.length === 0) throw new Error("Create at least one family before raising a due");
 
     const demand = await queryOne<{ id: string }>(
-      `DECLARE @out TABLE (id UNIQUEIDENTIFIER);
-       INSERT INTO dbo.payment_demands (title, description, amount_per_family, due_date, created_by)
-       OUTPUT INSERTED.id INTO @out
-       VALUES (@title, @description, @amount, @dueDate, @createdBy);
-       SELECT id FROM @out;`,
+      `INSERT INTO payment_demands (title, description, amount_per_family, due_date, created_by)
+       VALUES (@title, @description, @amount, @dueDate, @createdBy)
+       RETURNING id`,
       {
         title: data.title,
         description: data.description || null,
@@ -166,7 +164,7 @@ export const createDemand = createServerFn({ method: "POST" })
 
     for (const family of families) {
       await execute(
-        `INSERT INTO dbo.family_dues (demand_id, family_id, amount_due)
+        `INSERT INTO family_dues (demand_id, family_id, amount_due)
          VALUES (@demandId, @familyId, @amount)`,
         {
           demandId: demand.id,
@@ -186,7 +184,7 @@ export const setDemandStatus = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const { execute } = await import("@/lib/db");
-    await execute(`UPDATE dbo.payment_demands SET status = @status WHERE id = @id`, {
+    await execute(`UPDATE payment_demands SET status = @status WHERE id = @id`, {
       id: data.id,
       status: data.status,
     });

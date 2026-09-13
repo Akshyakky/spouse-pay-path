@@ -360,11 +360,16 @@ This system will allow one family to be managed through a single wife login. She
 
 ## Development
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+Prefer working locally? You need Node.js, npm, and PostgreSQL 14+.
 
 ```sh
 git clone <this-repository-url>
 cd <repository-name>
 npm i
+cp .env.example .env
+createdb spousepaypath
+npm run db:seed
 npm run dev
 ```
+
+Hosted Postgres (Neon, Supabase, Railway, Render) works with `DATABASE_URL`. Add `?sslmode=require` (or `PGSSL=require`) when the provider requires SSL.

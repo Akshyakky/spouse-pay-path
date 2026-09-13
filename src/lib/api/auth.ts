@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireAuth } from "@/integrations/mssql/auth-middleware";
+import { requireAuth } from "@/integrations/auth-middleware";
 import { loginIdentifierToEmail } from "@/lib/auth-utils";
 
 export type AppRole = "admin" | "family";
@@ -36,7 +36,7 @@ export const login = createServerFn({ method: "POST" })
       is_active: boolean;
     }>(
       `SELECT id, email, username, full_name, password_hash, is_active
-       FROM dbo.users
+       FROM users
        WHERE LOWER(email) = LOWER(@email)`,
       { email },
     );
@@ -85,8 +85,8 @@ export const getMyFamily = createServerFn({ method: "GET" })
       `SELECT f.id, f.family_no, f.family_name, f.address, f.contact_phone, f.contact_email,
               f.family_photo_url, f.wife_user_id, f.created_by, f.created_at, f.updated_at,
               h.full_name AS head_of_family
-       FROM dbo.families f
-       LEFT JOIN dbo.family_members h ON h.family_id = f.id AND h.is_head = 1
+       FROM families f
+       LEFT JOIN family_members h ON h.family_id = f.id AND h.is_head
        WHERE f.wife_user_id = @userId`,
       { userId: context.userId },
     );

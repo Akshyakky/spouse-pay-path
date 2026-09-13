@@ -5,7 +5,7 @@ import { nitro } from "nitro/vite";
 import { defineConfig, loadEnv } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 
-// Load all .env keys into process.env for server functions (MSSQL_*, SESSION_*, etc.)
+// Load all .env keys into process.env for server functions (DATABASE_URL, PG*, SESSION_*, etc.)
 const mode = process.env.NODE_ENV === "production" ? "production" : "development";
 const env = loadEnv(mode, process.cwd(), "");
 for (const [key, value] of Object.entries(env)) {

@@ -11,10 +11,9 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "seed:passwords": "node scripts/seed-passwords.mjs",
-    "db:alter-head": "node scripts/alter-member-is-head.mjs",
-    "db:alter-id-card": "node scripts/alter-member-id-card.mjs",
-    "db:alter-relationship": "node scripts/alter-member-relationship.mjs",
-    "db:alter-dues": "node scripts/alter-dues.mjs"
+    "db:init": "node scripts/init-db.mjs",
+    "db:seed": "node scripts/init-db.mjs --seed && node scripts/seed-passwords.mjs",
+    "db:migrate-uploads": "node scripts/migrate-uploads-to-db.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -58,7 +57,7 @@
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.575.0",
-    "mssql": "^12.7.0",
+    "pg": "^8.23.0",
     "react": "^19.2.0",
     "react-day-picker": "^9.14.0",
     "react-dom": "^19.2.0",
@@ -76,8 +75,8 @@
   "devDependencies": {
     "@eslint/js": "^9.32.0",
     "@types/bcryptjs": "^2.4.6",
-    "@types/mssql": "^12.3.0",
     "@types/node": "^22.16.5",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.2.0",

@@ -14,7 +14,7 @@ export const requireAuth = createMiddleware({ type: "function" }).server(async (
   const user = await requireSessionUser();
 
   const roleRow = await queryOne<{ role: string }>(
-    `SELECT TOP 1 role FROM dbo.user_roles WHERE user_id = @userId AND role = N'admin'`,
+    `SELECT role FROM user_roles WHERE user_id = @userId AND role = 'admin' LIMIT 1`,
     { userId: user.id },
   );
 

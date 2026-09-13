@@ -1,9 +1,11 @@
-import sql from "mssql";
-import { toDateString, toIsoString } from "@/lib/db-utils";
+import { Pool, types, type PoolConfig } from "pg";
 
-export { toDateString, toIsoString };
+types.setTypeParser(types.builtins.DATE, (value) => value);
+types.setTypeParser(types.builtins.NUMERIC, (value) => value);
 
-let poolPromise: Promise<sql.ConnectionPool> | undefined;
+const PARAM_RE = /@([A-Za-z_][A-Za-z0-9_]*)/g;
+
+let pool: Pool | undefined;
 
 function requireEnv(name: string): string {
   const value = process.env[name];
@@ -11,43 +13,73 @@ function requireEnv(name: string): string {
   return value;
 }
 
-export async function getPool(): Promise<sql.ConnectionPool> {
-  if (!poolPromise) {
-    poolPromise = new sql.ConnectionPool({
-      server: requireEnv("MSSQL_SERVER"),
-      database: requireEnv("MSSQL_DATABASE"),
-      user: requireEnv("MSSQL_USER"),
-      password: requireEnv("MSSQL_PASSWORD"),
-      options: {
-        encrypt: process.env.MSSQL_ENCRYPT === "true",
-        trustServerCertificate: process.env.MSSQL_TRUST_SERVER_CERTIFICATE !== "false",
-      },
-      pool: { max: 10, min: 0, idleTimeoutMillis: 30_000 },
-    })
-      .connect()
-      .catch((err) => {
-        poolPromise = undefined;
-        throw err;
-      });
+function sslConfig(): PoolConfig["ssl"] {
+  const mode = (process.env["PGSSL"] || process.env["PGSSLMODE"] || "").toLowerCase();
+  if (mode === "disable" || mode === "false") return false;
+  if (mode === "require" || mode === "true" || mode === "no-verify") {
+    return { rejectUnauthorized: false };
   }
-  return poolPromise;
+  const url = process.env["DATABASE_URL"] ?? "";
+  if (url.includes("sslmode=require") || url.includes("sslmode=verify-full") || url.includes("sslmode=verify-ca")) {
+    return { rejectUnauthorized: false };
+  }
+  return undefined;
 }
 
-export { sql };
+function createPool(): Pool {
+  const ssl = sslConfig();
+  const connectionString = process.env["DATABASE_URL"];
+  if (connectionString) {
+    return new Pool({
+      connectionString,
+      ssl,
+      max: 10,
+      idleTimeoutMillis: 30_000,
+    });
+  }
+
+  return new Pool({
+    host: requireEnv("PGHOST"),
+    port: Number(process.env["PGPORT"] || 5432),
+    user: requireEnv("PGUSER"),
+    password: requireEnv("PGPASSWORD"),
+    database: requireEnv("PGDATABASE"),
+    ssl,
+    max: 10,
+    idleTimeoutMillis: 30_000,
+  });
+}
+
+export function getPool(): Pool {
+  if (!pool) pool = createPool();
+  return pool;
+}
+
+function bindNamed(text: string, params?: Record<string, unknown>) {
+  const values: unknown[] = [];
+  const indexByName = new Map<string, number>();
+  const bound = text.replace(PARAM_RE, (_match, name: string) => {
+    let index = indexByName.get(name);
+    if (index == null) {
+      if (!params || !(name in params)) {
+        throw new Error(`Missing SQL parameter: ${name}`);
+      }
+      values.push(params[name]);
+      index = values.length;
+      indexByName.set(name, index);
+    }
+    return `$${index}`;
+  });
+  return { text: bound, values };
+}
 
 export async function query<T extends Record<string, unknown> = Record<string, unknown>>(
   text: string,
   params?: Record<string, unknown>,
 ): Promise<T[]> {
-  const pool = await getPool();
-  const request = pool.request();
-  if (params) {
-    for (const [key, value] of Object.entries(params)) {
-      request.input(key, value as never);
-    }
-  }
-  const result = await request.query<T>(text);
-  return result.recordset ?? [];
+  const bound = bindNamed(text, params);
+  const result = await getPool().query<T>(bound.text, bound.values);
+  return result.rows ?? [];
 }
 
 export async function queryOne<T extends Record<string, unknown> = Record<string, unknown>>(
@@ -59,13 +91,7 @@ export async function queryOne<T extends Record<string, unknown> = Record<string
 }
 
 export async function execute(text: string, params?: Record<string, unknown>): Promise<number> {
-  const pool = await getPool();
-  const request = pool.request();
-  if (params) {
-    for (const [key, value] of Object.entries(params)) {
-      request.input(key, value as never);
-    }
-  }
-  const result = await request.query(text);
-  return result.rowsAffected[0] ?? 0;
+  const bound = bindNamed(text, params);
+  const result = await getPool().query(bound.text, bound.values);
+  return result.rowCount ?? 0;
 }

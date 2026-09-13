@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireAuth, requireAdmin } from "@/integrations/mssql/auth-middleware";
+import { requireAuth, requireAdmin } from "@/integrations/auth-middleware";
 import { FAMILY_EMAIL_DOMAIN } from "@/lib/auth-utils";
 import { MEMBER_RELATIONSHIP_VALUES } from "@/lib/relationships";
 import type { MemberRow } from "@/lib/api/mappers";
@@ -25,11 +25,11 @@ export const listFamilies = createServerFn({ method: "GET" })
       `SELECT f.id, f.family_no, f.family_name, f.address, f.contact_phone, f.contact_email,
               f.family_photo_url, f.wife_user_id, f.created_by, f.created_at, f.updated_at,
               h.full_name AS head_of_family,
-              (SELECT COUNT(*) FROM dbo.family_members m WHERE m.family_id = f.id) AS member_count,
-              (SELECT COUNT(*) FROM dbo.family_members m WHERE m.family_id = f.id AND m.gender = N'Male') AS male_count,
-              (SELECT COUNT(*) FROM dbo.family_members m WHERE m.family_id = f.id AND m.gender = N'Female') AS female_count
-       FROM dbo.families f
-       LEFT JOIN dbo.family_members h ON h.family_id = f.id AND h.is_head = 1
+              (SELECT COUNT(*) FROM family_members m WHERE m.family_id = f.id) AS member_count,
+              (SELECT COUNT(*) FROM family_members m WHERE m.family_id = f.id AND m.gender = 'Male') AS male_count,
+              (SELECT COUNT(*) FROM family_members m WHERE m.family_id = f.id AND m.gender = 'Female') AS female_count
+       FROM families f
+       LEFT JOIN family_members h ON h.family_id = f.id AND h.is_head
        ORDER BY f.family_no`,
     );
     return rows.map(mapFamily);
@@ -40,7 +40,7 @@ export const listFamiliesLite = createServerFn({ method: "GET" })
   .handler(async () => {
     const { query } = await import("@/lib/db");
     const rows = await query<{ id: string; family_no: string; family_name: string }>(
-      `SELECT id, family_no, family_name FROM dbo.families ORDER BY family_no`,
+      `SELECT id, family_no, family_name FROM families ORDER BY family_no`,
     );
     return rows.map((r) => ({
       id: String(r.id),
@@ -61,11 +61,11 @@ export const getFamilyById = createServerFn({ method: "GET" })
       `SELECT f.id, f.family_no, f.family_name, f.address, f.contact_phone, f.contact_email,
               f.family_photo_url, f.wife_user_id, f.created_by, f.created_at, f.updated_at,
               h.full_name AS head_of_family,
-              (SELECT COUNT(*) FROM dbo.family_members m WHERE m.family_id = f.id) AS member_count,
-              (SELECT COUNT(*) FROM dbo.family_members m WHERE m.family_id = f.id AND m.gender = N'Male') AS male_count,
-              (SELECT COUNT(*) FROM dbo.family_members m WHERE m.family_id = f.id AND m.gender = N'Female') AS female_count
-       FROM dbo.families f
-       LEFT JOIN dbo.family_members h ON h.family_id = f.id AND h.is_head = 1
+              (SELECT COUNT(*) FROM family_members m WHERE m.family_id = f.id) AS member_count,
+              (SELECT COUNT(*) FROM family_members m WHERE m.family_id = f.id AND m.gender = 'Male') AS male_count,
+              (SELECT COUNT(*) FROM family_members m WHERE m.family_id = f.id AND m.gender = 'Female') AS female_count
+       FROM families f
+       LEFT JOIN family_members h ON h.family_id = f.id AND h.is_head
        WHERE f.id = @id`,
       { id: data.id },
     );
@@ -86,7 +86,7 @@ export const getNextFamilyNo = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
   .handler(async () => {
     const { query } = await import("@/lib/db");
-    const rows = await query<{ family_no: string }>(`SELECT family_no FROM dbo.families`);
+    const rows = await query<{ family_no: string }>(`SELECT family_no FROM families`);
     const used = new Set(rows.map((r) => r.family_no.toUpperCase()));
 
     let maxNum = 0;
@@ -129,7 +129,7 @@ export const createFamilyWithLogin = createServerFn({ method: "POST" })
     const familyNo = data.family_no;
 
     const taken = await queryOne<{ id: string }>(
-      `SELECT id FROM dbo.families WHERE UPPER(family_no) = @familyNo`,
+      `SELECT id FROM families WHERE UPPER(family_no) = @familyNo`,
       { familyNo },
     );
     if (taken) throw new Error(`Family ID ${familyNo} is already in use`);
@@ -137,10 +137,10 @@ export const createFamilyWithLogin = createServerFn({ method: "POST" })
     let family: { id: string; family_no: string } | null;
     try {
       family = await queryOne<{ id: string; family_no: string }>(
-        `INSERT INTO dbo.families
+        `INSERT INTO families
            (family_no, family_name, address, contact_phone, contact_email, family_photo_url, created_by)
-         OUTPUT INSERTED.id, INSERTED.family_no
-         VALUES (@familyNo, @familyName, @address, @phone, @email, @photo, @createdBy)`,
+         VALUES (@familyNo, @familyName, @address, @phone, @email, @photo, @createdBy)
+         RETURNING id, family_no`,
         {
           familyNo,
           familyName: data.family_name,
@@ -153,7 +153,7 @@ export const createFamilyWithLogin = createServerFn({ method: "POST" })
       );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      if (/unique|duplicate|UQ_families_family_no/i.test(msg)) {
+      if (/unique|duplicate|uq_families_family_no/i.test(msg)) {
         throw new Error(`Family ID ${familyNo} is already in use`);
       }
       throw e;
@@ -169,12 +169,10 @@ export const createFamilyWithLogin = createServerFn({ method: "POST" })
         appRole: "family",
       });
 
-      await execute(`UPDATE dbo.families SET wife_user_id = @userId WHERE id = @familyId`, {
+      await execute(`UPDATE families SET wife_user_id = @userId WHERE id = @familyId`, {
         userId,
         familyId: family.id,
       });
-
-      // Members (including head) are added later from the family editor
 
       return {
         familyId: String(family.id),
@@ -183,7 +181,7 @@ export const createFamilyWithLogin = createServerFn({ method: "POST" })
         password: data.password,
       };
     } catch (e) {
-      await execute(`DELETE FROM dbo.families WHERE id = @id`, { id: family.id });
+      await execute(`DELETE FROM families WHERE id = @id`, { id: family.id });
       throw e;
     }
   });
@@ -211,7 +209,7 @@ export const updateFamily = createServerFn({ method: "POST" })
     const familyNo = data.family_no?.trim().toUpperCase() || null;
     if (familyNo && context.isAdmin) {
       const taken = await queryOne<{ id: string }>(
-        `SELECT id FROM dbo.families WHERE UPPER(family_no) = @familyNo AND id <> @id`,
+        `SELECT id FROM families WHERE UPPER(family_no) = @familyNo AND id <> @id`,
         { familyNo, id: data.id },
       );
       if (taken) throw new Error(`Family ID ${familyNo} is already in use`);
@@ -219,7 +217,7 @@ export const updateFamily = createServerFn({ method: "POST" })
 
     if (familyNo && context.isAdmin) {
       await execute(
-        `UPDATE dbo.families
+        `UPDATE families
          SET family_no = @familyNo,
              family_name = @familyName,
              address = @address,
@@ -239,7 +237,7 @@ export const updateFamily = createServerFn({ method: "POST" })
       );
     } else {
       await execute(
-        `UPDATE dbo.families
+        `UPDATE families
          SET family_name = @familyName,
              address = @address,
              contact_phone = @phone,
@@ -270,9 +268,9 @@ export const listFamilyMembers = createServerFn({ method: "GET" })
     const rows = await query(
       `SELECT id, family_id, relationship, full_name, gender, date_of_birth, blood_group,
               contact, address, photo_url, remarks, id_card_type, id_card_number, is_head
-       FROM dbo.family_members
+       FROM family_members
        WHERE family_id = @familyId
-       ORDER BY CASE WHEN is_head = 1 THEN 0 ELSE 1 END, created_at`,
+       ORDER BY CASE WHEN is_head THEN 0 ELSE 1 END, created_at`,
       { familyId: data.familyId },
     );
     return rows.map(mapMember);
@@ -307,7 +305,7 @@ export const upsertFamilyMember = createServerFn({ method: "POST" })
     const bloodGroup = data.blood_group || null;
     if (data.id) {
       await execute(
-        `UPDATE dbo.family_members
+        `UPDATE family_members
          SET relationship = @relationship,
              full_name = @fullName,
              gender = @gender,
@@ -338,7 +336,7 @@ export const upsertFamilyMember = createServerFn({ method: "POST" })
       );
     } else {
       await execute(
-        `INSERT INTO dbo.family_members
+        `INSERT INTO family_members
            (family_id, relationship, full_name, gender, date_of_birth, blood_group, contact, address, remarks, photo_url, id_card_type, id_card_number)
          VALUES (@familyId, @relationship, @fullName, @gender, @dob, @bloodGroup, @contact, @address, @remarks, @photo, @idCardType, @idCardNumber)`,
         {
@@ -371,16 +369,16 @@ export const setFamilyHead = createServerFn({ method: "POST" })
     await assertCanAccessFamily(context.userId, context.isAdmin, data.familyId);
 
     const member = await queryOne<{ id: string }>(
-      `SELECT id FROM dbo.family_members WHERE id = @id AND family_id = @familyId`,
+      `SELECT id FROM family_members WHERE id = @id AND family_id = @familyId`,
       { id: data.memberId, familyId: data.familyId },
     );
     if (!member) throw new Error("Family member not found");
 
-    await execute(`UPDATE dbo.family_members SET is_head = 0 WHERE family_id = @familyId AND is_head = 1`, {
+    await execute(`UPDATE family_members SET is_head = FALSE WHERE family_id = @familyId AND is_head`, {
       familyId: data.familyId,
     });
     await execute(
-      `UPDATE dbo.family_members SET is_head = 1 WHERE id = @id AND family_id = @familyId`,
+      `UPDATE family_members SET is_head = TRUE WHERE id = @id AND family_id = @familyId`,
       { id: data.memberId, familyId: data.familyId },
     );
     return { ok: true };
@@ -397,32 +395,33 @@ export const deleteFamilyMember = createServerFn({ method: "POST" })
     await assertCanAccessFamily(context.userId, context.isAdmin, data.familyId);
 
     const removing = await queryOne<{ is_head: boolean }>(
-      `SELECT is_head FROM dbo.family_members WHERE id = @id AND family_id = @familyId`,
+      `SELECT is_head FROM family_members WHERE id = @id AND family_id = @familyId`,
       { id: data.id, familyId: data.familyId },
     );
 
-    await execute(`DELETE FROM dbo.family_members WHERE id = @id AND family_id = @familyId`, {
+    await execute(`DELETE FROM family_members WHERE id = @id AND family_id = @familyId`, {
       id: data.id,
       familyId: data.familyId,
     });
 
     if (removing?.is_head) {
       await execute(
-        `;WITH next_head AS (
-           SELECT TOP 1 id
-           FROM dbo.family_members
+        `UPDATE family_members m
+         SET is_head = TRUE
+         FROM (
+           SELECT id
+           FROM family_members
            WHERE family_id = @familyId
            ORDER BY
              CASE relationship
-               WHEN N'husband' THEN 1
-               WHEN N'wife' THEN 2
+               WHEN 'husband' THEN 1
+               WHEN 'wife' THEN 2
                ELSE 3
              END,
              created_at
-         )
-         UPDATE m SET m.is_head = 1
-         FROM dbo.family_members m
-         INNER JOIN next_head n ON n.id = m.id`,
+           LIMIT 1
+         ) n
+         WHERE m.id = n.id`,
         { familyId: data.familyId },
       );
     }
@@ -453,7 +452,7 @@ export const createFamilyLogin = createServerFn({ method: "POST" })
       password: data.password,
       appRole: "family",
     });
-    await execute(`UPDATE dbo.families SET wife_user_id = @userId WHERE id = @familyId`, {
+    await execute(`UPDATE families SET wife_user_id = @userId WHERE id = @familyId`, {
       userId,
       familyId: data.familyId,
     });
@@ -469,7 +468,7 @@ export const resetFamilyPassword = createServerFn({ method: "POST" })
     const bcrypt = (await import("bcryptjs")).default;
     const { execute } = await import("@/lib/db");
     const passwordHash = await bcrypt.hash(data.password, 10);
-    const n = await execute(`UPDATE dbo.users SET password_hash = @hash WHERE id = @userId`, {
+    const n = await execute(`UPDATE users SET password_hash = @hash WHERE id = @userId`, {
       hash: passwordHash,
       userId: data.userId,
     });
@@ -498,8 +497,8 @@ export const createAdminLogin = createServerFn({ method: "POST" })
       password: data.password,
       appRole: "admin",
     });
-    await execute(`DELETE FROM dbo.user_roles WHERE user_id = @userId`, { userId });
-    await execute(`INSERT INTO dbo.user_roles (user_id, role) VALUES (@userId, N'admin')`, {
+    await execute(`DELETE FROM user_roles WHERE user_id = @userId`, { userId });
+    await execute(`INSERT INTO user_roles (user_id, role) VALUES (@userId, 'admin')`, {
       userId,
     });
     return { userId };
@@ -510,11 +509,11 @@ export const listAdmins = createServerFn({ method: "GET" })
   .handler(async () => {
     const { query } = await import("@/lib/db");
     const roles = await query<{ user_id: string; created_at: string }>(
-      `SELECT user_id, created_at FROM dbo.user_roles WHERE role = N'admin' ORDER BY created_at`,
+      `SELECT user_id, created_at FROM user_roles WHERE role = 'admin' ORDER BY created_at`,
     );
     if (roles.length === 0) return [];
     const profiles = await query<{ id: string; username: string | null; full_name: string | null }>(
-      `SELECT id, username, full_name FROM dbo.profiles`,
+      `SELECT id, username, full_name FROM profiles`,
     );
     const byId = new Map(profiles.map((p) => [String(p.id), p]));
     return roles.map((r) => ({
@@ -536,12 +535,11 @@ export const deleteFamily = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { execute, queryOne } = await import("@/lib/db");
     const family = await queryOne<{ id: string; family_name: string }>(
-      `SELECT id, family_name FROM dbo.families WHERE id = @id`,
+      `SELECT id, family_name FROM families WHERE id = @id`,
       { id: data.id },
     );
     if (!family) throw new Error("Family not found");
 
-    // Members and payments cascade; expenses are set null by FK
-    await execute(`DELETE FROM dbo.families WHERE id = @id`, { id: data.id });
+    await execute(`DELETE FROM families WHERE id = @id`, { id: data.id });
     return { ok: true, family_name: family.family_name };
   });

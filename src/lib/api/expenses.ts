@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireAuth, requireAdmin } from "@/integrations/mssql/auth-middleware";
+import { requireAuth, requireAdmin } from "@/integrations/auth-middleware";
 
 export const listExpenses = createServerFn({ method: "GET" })
   .middleware([requireAdmin])
@@ -10,10 +10,10 @@ export const listExpenses = createServerFn({ method: "GET" })
     const rows = await query(
       `SELECT e.id, e.category, e.amount, e.expense_date, e.description, e.attachment_url,
               e.family_id, e.created_by, e.created_at,
-              COALESCE(NULLIF(p.full_name, N''), p.username, u.email) AS created_by_name
-       FROM dbo.expenses e
-       LEFT JOIN dbo.profiles p ON p.id = e.created_by
-       LEFT JOIN dbo.users u ON u.id = e.created_by
+              COALESCE(NULLIF(p.full_name, ''), p.username, u.email) AS created_by_name
+       FROM expenses e
+       LEFT JOIN profiles p ON p.id = e.created_by
+       LEFT JOIN users u ON u.id = e.created_by
        ORDER BY e.expense_date DESC, e.created_at DESC`,
     );
     return rows.map(mapExpense);
@@ -36,7 +36,7 @@ export const createExpense = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { execute } = await import("@/lib/db");
     await execute(
-      `INSERT INTO dbo.expenses
+      `INSERT INTO expenses
          (amount, category, description, expense_date, attachment_url, family_id, created_by)
        VALUES
          (@amount, @category, @description, @expenseDate, @attachment, @familyId, @createdBy)`,
@@ -77,7 +77,7 @@ export const getReport = createServerFn({ method: "GET" })
 
     const payments = await query(
       `SELECT id, voucher_no, amount, status, payment_date, mode
-       FROM dbo.payments
+       FROM payments
        WHERE payment_date >= @fromDate AND payment_date <= @toDate
          AND (@familyId IS NULL OR family_id = @familyId)
        ORDER BY payment_date DESC`,
@@ -88,7 +88,7 @@ export const getReport = createServerFn({ method: "GET" })
     if (context.isAdmin) {
       const rows = await query(
         `SELECT id, amount, category, expense_date, description, attachment_url, family_id, created_by, created_at
-         FROM dbo.expenses
+         FROM expenses
          WHERE expense_date >= @fromDate AND expense_date <= @toDate
          ORDER BY expense_date DESC`,
         { fromDate: data.from, toDate: data.to },

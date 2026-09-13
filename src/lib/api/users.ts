@@ -9,19 +9,16 @@ export async function createUserRecord(input: {
   appRole: "admin" | "family";
 }): Promise<string> {
   const existing = await queryOne<{ id: string }>(
-    `SELECT id FROM dbo.users WHERE LOWER(email) = LOWER(@email)`,
+    `SELECT id FROM users WHERE LOWER(email) = LOWER(@email)`,
     { email: input.email },
   );
   if (existing) throw new Error("A user with that email/username already exists");
 
   const passwordHash = await bcrypt.hash(input.password, 10);
-  // OUTPUT ... INTO is required: dbo.users has trg_users_after_insert
   const row = await queryOne<{ id: string }>(
-    `DECLARE @inserted TABLE (id UNIQUEIDENTIFIER);
-     INSERT INTO dbo.users (email, username, full_name, password_hash, app_role)
-     OUTPUT INSERTED.id INTO @inserted
-     VALUES (@email, @username, @fullName, @passwordHash, @appRole);
-     SELECT id FROM @inserted;`,
+    `INSERT INTO users (email, username, full_name, password_hash, app_role)
+     VALUES (@email, @username, @fullName, @passwordHash, @appRole)
+     RETURNING id`,
     {
       email: input.email.toLowerCase(),
       username: input.username ?? null,

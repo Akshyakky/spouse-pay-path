@@ -1,4 +1,4 @@
-/** Pure helpers safe for client + server (no Node/mssql imports). */
+/** Pure helpers safe for client + server (no Node/pg imports). */
 
 export function toDateString(value: unknown): string | null {
   if (value == null) return null;
