@@ -20,7 +20,7 @@ export default defineConfig({
     tanstackStart({
       server: { entry: "./src/server.ts" },
     }),
-    nitro(),
+    nitro({ preset: "node-server" }),
     viteReact(),
     tailwindcss(),
     tsConfigPaths({ projects: ["./tsconfig.json"] }),

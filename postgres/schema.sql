@@ -95,6 +95,7 @@ CREATE TABLE family_members (
     id_card_type   VARCHAR(30) NULL,
     id_card_number VARCHAR(50) NULL,
     is_head        BOOLEAN NOT NULL DEFAULT FALSE,
+    is_deceased    BOOLEAN NOT NULL DEFAULT FALSE,
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT ck_family_members_relationship CHECK (relationship IN (

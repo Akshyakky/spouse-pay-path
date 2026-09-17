@@ -17,6 +17,7 @@ dist-ssr
 *.local
 uploads
 .env
+family-logins.csv
 
 # Wrangler / Cloudflare
 .wrangler/

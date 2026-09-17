@@ -2,13 +2,13 @@ import "dotenv/config";
 import pg from "pg";
 
 function sslConfig() {
+  const url = process.env.DATABASE_URL ?? "";
+  if (url.includes("sslmode=require") || url.includes("sslmode=verify-full") || url.includes("sslmode=verify-ca")) {
+    return { rejectUnauthorized: false };
+  }
   const mode = (process.env.PGSSL || process.env.PGSSLMODE || "").toLowerCase();
   if (mode === "disable" || mode === "false") return false;
   if (mode === "require" || mode === "true" || mode === "no-verify") {
-    return { rejectUnauthorized: false };
-  }
-  const url = process.env.DATABASE_URL ?? "";
-  if (url.includes("sslmode=require") || url.includes("sslmode=verify-full") || url.includes("sslmode=verify-ca")) {
     return { rejectUnauthorized: false };
   }
   return undefined;

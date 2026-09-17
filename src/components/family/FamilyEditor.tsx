@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -285,6 +286,7 @@ export function FamilyEditor({
                   <p className="truncate font-medium">{member.full_name}</p>
                   <Badge variant="secondary">{relationshipLabel(member.relationship)}</Badge>
                   {member.is_head ? <Badge>Head of family</Badge> : null}
+                  {member.is_deceased ? <Badge variant="outline">Deceased</Badge> : null}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {[
@@ -385,6 +387,7 @@ function MemberDialog({ familyId, member }: { familyId: string; member?: Member 
   const [age, setAge] = useState<string>(
     member?.date_of_birth ? String(calcAge(member.date_of_birth) ?? "") : "",
   );
+  const [isDeceased, setIsDeceased] = useState(Boolean(member?.is_deceased));
   const queryClient = useQueryClient();
 
   function resetFields() {
@@ -394,16 +397,14 @@ function MemberDialog({ familyId, member }: { familyId: string; member?: Member 
     setBloodGroup(member?.blood_group ?? "");
     setDob(member?.date_of_birth ?? "");
     setAge(member?.date_of_birth ? String(calcAge(member.date_of_birth) ?? "") : "");
+    setIsDeceased(Boolean(member?.is_deceased));
   }
 
   const save = useMutation({
     mutationFn: async (form: FormData) => {
       const fullName = String(form.get("full_name") ?? "").trim();
       if (fullName.length < 2) throw new Error("Full name is required");
-      if (!gender) throw new Error("Gender is required");
-      if (!idCardType) throw new Error("ID card type is required");
       const idCardNumber = String(form.get("id_card_number") ?? "").trim();
-      if (idCardNumber.length < 3) throw new Error("ID card number is required");
 
       const photo = form.get("photo") as File | null;
       let photoKey = member?.photo_url ?? null;
@@ -422,9 +423,9 @@ function MemberDialog({ familyId, member }: { familyId: string; member?: Member 
           family_id: familyId,
           relationship,
           full_name: fullName,
-          gender: gender as "Male" | "Female" | "Other",
-          id_card_type: idCardType,
-          id_card_number: idCardNumber,
+          gender: (gender || null) as "Male" | "Female" | "Other" | null,
+          id_card_type: idCardType || null,
+          id_card_number: idCardNumber || null,
           date_of_birth: dateOfBirth,
           blood_group: (bloodGroup || null) as
             | "A+"
@@ -440,6 +441,7 @@ function MemberDialog({ familyId, member }: { familyId: string; member?: Member 
           address: String(form.get("address") ?? "").trim() || null,
           remarks: String(form.get("remarks") ?? "") || null,
           photo_url: photoKey,
+          is_deceased: isDeceased,
         },
       });
     },
@@ -506,11 +508,15 @@ function MemberDialog({ familyId, member }: { familyId: string; member?: Member 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Gender</Label>
-              <Select value={gender || undefined} onValueChange={setGender}>
+              <Select
+                value={gender || "none"}
+                onValueChange={(v) => setGender(v === "none" ? "" : v)}
+              >
                 <SelectTrigger>
                   <SelectValue placeholder="Select gender" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">Not specified</SelectItem>
                   {GENDERS.map((g) => (
                     <SelectItem key={g} value={g}>
                       {g}
@@ -543,13 +549,14 @@ function MemberDialog({ familyId, member }: { familyId: string; member?: Member 
             <div className="space-y-2">
               <Label>ID card type</Label>
               <Select
-                value={idCardType || undefined}
-                onValueChange={(v) => setIdCardType(v as IdCardType)}
+                value={idCardType || "none"}
+                onValueChange={(v) => setIdCardType(v === "none" ? "" : (v as IdCardType))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select ID type" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">Not specified</SelectItem>
                   {ID_CARD_TYPES.map((t) => (
                     <SelectItem key={t.value} value={t.value}>
                       {t.label}
@@ -564,7 +571,6 @@ function MemberDialog({ familyId, member }: { familyId: string; member?: Member 
                 id="id_card_number"
                 name="id_card_number"
                 defaultValue={member?.id_card_number ?? ""}
-                required
                 placeholder="Enter ID number"
               />
             </div>
@@ -629,6 +635,10 @@ function MemberDialog({ familyId, member }: { familyId: string; member?: Member 
             <Label htmlFor="remarks">Remarks</Label>
             <Textarea id="remarks" name="remarks" rows={2} defaultValue={member?.remarks ?? ""} />
           </div>
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox checked={isDeceased} onCheckedChange={(v) => setIsDeceased(v === true)} />
+            Deceased
+          </label>
           </DialogBody>
           <DialogFooter>
             <Button type="submit" disabled={save.isPending}>

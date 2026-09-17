@@ -267,7 +267,7 @@ export const listFamilyMembers = createServerFn({ method: "GET" })
     await assertCanAccessFamily(context.userId, context.isAdmin, data.familyId);
     const rows = await query(
       `SELECT id, family_id, relationship, full_name, gender, date_of_birth, blood_group,
-              contact, address, photo_url, remarks, id_card_type, id_card_number, is_head
+              contact, address, photo_url, remarks, id_card_type, id_card_number, is_head, is_deceased
        FROM family_members
        WHERE family_id = @familyId
        ORDER BY CASE WHEN is_head THEN 0 ELSE 1 END, created_at`,
@@ -280,9 +280,9 @@ const memberPayload = z.object({
   family_id: z.string().uuid(),
   relationship: z.enum(MEMBER_RELATIONSHIP_VALUES),
   full_name: z.string().trim().min(2).max(200),
-  gender: z.enum(["Male", "Female", "Other"]),
-  id_card_type: z.enum(["aadhaar", "pan", "epic", "dl", "ration_card"]),
-  id_card_number: z.string().trim().min(3).max(50),
+  gender: z.enum(["Male", "Female", "Other"]).optional().nullable(),
+  id_card_type: z.enum(["aadhaar", "pan", "epic", "dl", "ration_card"]).optional().nullable(),
+  id_card_number: z.string().trim().max(50).optional().nullable(),
   date_of_birth: z.string().trim().max(20).optional().nullable(),
   blood_group: z
     .enum(["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"])
@@ -292,6 +292,7 @@ const memberPayload = z.object({
   address: z.string().trim().max(500).optional().nullable(),
   remarks: z.string().trim().max(1000).optional().nullable(),
   photo_url: z.string().trim().max(1000).optional().nullable(),
+  is_deceased: z.boolean().optional(),
 });
 
 export const upsertFamilyMember = createServerFn({ method: "POST" })
@@ -303,6 +304,10 @@ export const upsertFamilyMember = createServerFn({ method: "POST" })
     await assertCanAccessFamily(context.userId, context.isAdmin, data.family_id);
     const dob = data.date_of_birth || null;
     const bloodGroup = data.blood_group || null;
+    const gender = data.gender || null;
+    const idCardType = data.id_card_type || null;
+    const idCardNumber = data.id_card_number?.trim() || null;
+    const isDeceased = Boolean(data.is_deceased);
     if (data.id) {
       await execute(
         `UPDATE family_members
@@ -316,42 +321,45 @@ export const upsertFamilyMember = createServerFn({ method: "POST" })
              remarks = @remarks,
              photo_url = @photo,
              id_card_type = @idCardType,
-             id_card_number = @idCardNumber
+             id_card_number = @idCardNumber,
+             is_deceased = @isDeceased
          WHERE id = @id AND family_id = @familyId`,
         {
           id: data.id,
           familyId: data.family_id,
           relationship: data.relationship,
           fullName: data.full_name,
-          gender: data.gender,
+          gender,
           dob,
           bloodGroup,
           contact: data.contact || null,
           address: data.address || null,
           remarks: data.remarks || null,
           photo: data.photo_url || null,
-          idCardType: data.id_card_type,
-          idCardNumber: data.id_card_number,
+          idCardType,
+          idCardNumber,
+          isDeceased,
         },
       );
     } else {
       await execute(
         `INSERT INTO family_members
-           (family_id, relationship, full_name, gender, date_of_birth, blood_group, contact, address, remarks, photo_url, id_card_type, id_card_number)
-         VALUES (@familyId, @relationship, @fullName, @gender, @dob, @bloodGroup, @contact, @address, @remarks, @photo, @idCardType, @idCardNumber)`,
+           (family_id, relationship, full_name, gender, date_of_birth, blood_group, contact, address, remarks, photo_url, id_card_type, id_card_number, is_deceased)
+         VALUES (@familyId, @relationship, @fullName, @gender, @dob, @bloodGroup, @contact, @address, @remarks, @photo, @idCardType, @idCardNumber, @isDeceased)`,
         {
           familyId: data.family_id,
           relationship: data.relationship,
           fullName: data.full_name,
-          gender: data.gender,
+          gender,
           dob,
           bloodGroup,
           contact: data.contact || null,
           address: data.address || null,
           remarks: data.remarks || null,
           photo: data.photo_url || null,
-          idCardType: data.id_card_type,
-          idCardNumber: data.id_card_number,
+          idCardType,
+          idCardNumber,
+          isDeceased,
         },
       );
     }
