@@ -5,14 +5,16 @@ import { AppShell } from "@/components/AppShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PrivateFileLink } from "@/components/PrivateImage";
 import { formatMoney } from "@/lib/auth";
+import { OrgLetterhead } from "@/components/OrgBrand";
 import { Button } from "@/components/ui/button";
+import { orgPageTitle } from "@/lib/org";
 
 export const Route = createFileRoute("/_authenticated/vouchers/$id")({
   head: () => ({
     meta: [
-      { title: "Payment voucher / receipt — Family Payment Tracking System" },
+      { title: orgPageTitle("Payment voucher / receipt") },
       { name: "description", content: "Printable payment voucher or official receipt after approval." },
-      { property: "og:title", content: "Payment voucher / receipt — Family Payment Tracking System" },
+      { property: "og:title", content: orgPageTitle("Payment voucher / receipt") },
       { property: "og:description", content: "Printable payment voucher or receipt." },
       { name: "robots", content: "noindex" },
     ],
@@ -49,6 +51,7 @@ function VoucherPage() {
     >
       {p ? (
         <article className="surface mx-auto max-w-2xl p-8">
+          <OrgLetterhead className="mb-6 border-b border-border pb-4" />
           <header className="flex items-start justify-between gap-4 border-b border-border pb-4">
             <div>
               <h2 className="font-display text-xl font-semibold">{docTitle}</h2>

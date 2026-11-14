@@ -2,13 +2,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { FamilyEditor } from "@/components/family/FamilyEditor";
 import { useMyFamily } from "@/lib/auth";
+import { orgPageTitle } from "@/lib/org";
 
 export const Route = createFileRoute("/_authenticated/family")({
   head: () => ({
     meta: [
-      { title: "My family — Family Payment Tracking System" },
+      { title: orgPageTitle("My family") },
       { name: "description", content: "Maintain your family profile and member details." },
-      { property: "og:title", content: "My family — Family Payment Tracking System" },
+      { property: "og:title", content: orgPageTitle("My family") },
       { property: "og:description", content: "Family profile and member details." },
       { name: "robots", content: "noindex" },
     ],

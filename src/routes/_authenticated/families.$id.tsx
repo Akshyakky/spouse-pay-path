@@ -12,13 +12,14 @@ import { formatMoney } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { orgPageTitle } from "@/lib/org";
 
 export const Route = createFileRoute("/_authenticated/families/$id")({
   head: () => ({
     meta: [
-      { title: "Family record — Family Payment Tracking System" },
+      { title: orgPageTitle("Family record") },
       { name: "description", content: "Family profile, members, payments and login controls." },
-      { property: "og:title", content: "Family record — Family Payment Tracking System" },
+      { property: "og:title", content: orgPageTitle("Family record") },
       { property: "og:description", content: "Family profile, members and payments." },
       { name: "robots", content: "noindex" },
     ],

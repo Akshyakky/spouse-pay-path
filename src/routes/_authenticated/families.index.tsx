@@ -37,13 +37,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { orgPageTitle } from "@/lib/org";
 
 export const Route = createFileRoute("/_authenticated/families/")({
   head: () => ({
     meta: [
-      { title: "Families — Family Payment Tracking System" },
+      { title: orgPageTitle("Families") },
       { name: "description", content: "All registered families and their login accounts." },
-      { property: "og:title", content: "Families — Family Payment Tracking System" },
+      { property: "og:title", content: orgPageTitle("Families") },
       { property: "og:description", content: "Registered families and logins." },
       { name: "robots", content: "noindex" },
     ],

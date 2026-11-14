@@ -6,13 +6,14 @@ import { AppShell } from "@/components/AppShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { orgPageTitle } from "@/lib/org";
 
 export const Route = createFileRoute("/_authenticated/admins")({
   head: () => ({
     meta: [
-      { title: "Administrators — Family Payment Tracking System" },
+      { title: orgPageTitle("Administrators") },
       { name: "description", content: "Manage administrator accounts for the tracking system." },
-      { property: "og:title", content: "Administrators — Family Payment Tracking System" },
+      { property: "og:title", content: orgPageTitle("Administrators") },
       { property: "og:description", content: "Manage administrator accounts." },
       { name: "robots", content: "noindex" },
     ],

@@ -31,13 +31,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { orgPageTitle } from "@/lib/org";
 
 export const Route = createFileRoute("/_authenticated/payments")({
   head: () => ({
     meta: [
-      { title: "Payments — Family Payment Tracking System" },
+      { title: orgPageTitle("Payments") },
       { name: "description", content: "Submit payments, upload proof and track approvals." },
-      { property: "og:title", content: "Payments — Family Payment Tracking System" },
+      { property: "og:title", content: orgPageTitle("Payments") },
       { property: "og:description", content: "Payment submissions and approvals." },
       { name: "robots", content: "noindex" },
     ],

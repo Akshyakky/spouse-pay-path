@@ -5,16 +5,17 @@ import { formatMoney, useMyFamily, useRole } from "@/lib/auth";
 import { StatusBadge } from "@/components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { getDashboardSummary, listPayments } from "@/lib/api/payments";
+import { orgPageTitle } from "@/lib/org";
 
 export const Route = createFileRoute("/_authenticated/dashboard")({
   head: () => ({
     meta: [
-      { title: "Dashboard — Family Payment Tracking System" },
+      { title: orgPageTitle("Dashboard") },
       {
         name: "description",
         content: "Credit, debit, balance and pending approvals at a glance.",
       },
-      { property: "og:title", content: "Dashboard — Family Payment Tracking System" },
+      { property: "og:title", content: orgPageTitle("Dashboard") },
       { property: "og:description", content: "Credit, debit and balance overview." },
       { name: "robots", content: "noindex" },
     ],

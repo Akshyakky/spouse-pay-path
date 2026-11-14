@@ -1,26 +1,27 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { getSessionUser, login } from "@/lib/api/auth";
 import { loginIdentifierToEmail } from "@/lib/auth";
+import { OrgContactText, OrgMark } from "@/components/OrgBrand";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ORG, orgPageTitle } from "@/lib/org";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Sign in — Family Payment Tracking System" },
+      { title: orgPageTitle("Sign in") },
       {
         name: "description",
-        content:
-          "Sign in as an administrator or with the family username issued by the admin to manage family payments and vouchers.",
+        content: `Sign in to ${ORG.name}.`,
       },
-      { property: "og:title", content: "Sign in — Family Payment Tracking System" },
+      { property: "og:title", content: orgPageTitle("Sign in") },
       {
         property: "og:description",
-        content: "Secure login for administrators and the family user.",
+        content: `Sign in to ${ORG.name}.`,
       },
       { name: "robots", content: "noindex" },
     ],
@@ -75,28 +76,17 @@ function AuthPage() {
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
-      <div className="hero-gradient hidden flex-col justify-between p-10 text-primary-foreground lg:flex">
-        <Link to="/" className="font-display text-base font-semibold">
-          Family Payments
-        </Link>
-        <div>
-          <h2 className="max-w-sm text-3xl font-semibold leading-tight">
-            Payments, vouchers and approvals in one secure place.
-          </h2>
-          <p className="mt-4 max-w-sm text-sm text-primary-foreground/80">
-            Administrators manage families, approvals, expenses and reports. The family user signs
-            in with the username issued by the admin.
-          </p>
-        </div>
-        <p className="text-xs text-primary-foreground/60">Family Payment Tracking System</p>
+      <div className="hero-gradient hidden flex-col justify-center gap-8 p-10 text-primary-foreground lg:flex">
+        <OrgMark />
+        <OrgContactText prefix="For help:" className="text-xs text-primary-foreground/60" />
       </div>
 
       <div className="flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
+          <div className="mb-8 lg:hidden">
+            <OrgMark />
+          </div>
           <h1 className="text-2xl font-semibold">Sign in</h1>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Family users sign in with their username. Administrators use their email address.
-          </p>
 
           <form onSubmit={handleLogin} className="mt-8 space-y-4">
             <div className="space-y-2">
@@ -117,11 +107,7 @@ function AuthPage() {
               {busy ? "Signing in…" : "Sign in"}
             </Button>
           </form>
-
-          <p className="mt-6 rounded-lg bg-secondary p-3 text-xs text-secondary-foreground">
-            Accounts are not self-service. Administrators are added from inside the app by an
-            existing admin, and family logins are issued by an admin.
-          </p>
+          <OrgContactText prefix="For help:" className="mt-6 text-xs text-muted-foreground lg:hidden" />
         </div>
       </div>
     </div>

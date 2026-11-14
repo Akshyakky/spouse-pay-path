@@ -16,13 +16,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { OrgLetterhead } from "@/components/OrgBrand";
+import { orgPageTitle } from "@/lib/org";
 
 export const Route = createFileRoute("/_authenticated/reports")({
   head: () => ({
     meta: [
-      { title: "Reports — Family Payment Tracking System" },
+      { title: orgPageTitle("Reports") },
       { name: "description", content: "Credit, debit and balance reports for any date range." },
-      { property: "og:title", content: "Reports — Family Payment Tracking System" },
+      { property: "og:title", content: orgPageTitle("Reports") },
       { property: "og:description", content: "Credit, debit and balance reports." },
       { name: "robots", content: "noindex" },
     ],
@@ -64,6 +66,7 @@ function ReportsPage() {
   return (
     <AppShell title="Reports" description="Filter by period and print a statement">
       <div className="surface p-6 print:shadow-none">
+        <OrgLetterhead className="mb-6 border-b border-border pb-4" />
         <form
           className="flex flex-wrap items-end gap-3 print:hidden"
           onSubmit={(e) => e.preventDefault()}

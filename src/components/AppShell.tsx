@@ -18,6 +18,7 @@ import {
 import { changePassword, logout } from "@/lib/api/auth";
 import { useRole } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { OrgMark } from "@/components/OrgBrand";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -84,11 +85,8 @@ export function AppShell({
           open ? "flex translate-x-0" : "hidden -translate-x-full lg:flex",
         )}
       >
-        <div className="border-b border-sidebar-border px-5 py-5">
-          <p className="font-display text-base font-semibold text-sidebar-accent-foreground">
-            Family Payments
-          </p>
-          <p className="mt-1 text-xs text-sidebar-foreground/70">Tracking &amp; approvals</p>
+        <div className="border-b border-sidebar-border px-5 py-5 text-sidebar-accent-foreground">
+          <OrgMark />
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {items.map((item) => {

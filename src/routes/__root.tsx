@@ -11,6 +11,7 @@ import { type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
+import { ORG, orgPageTitle } from "@/lib/org";
 
 function NotFoundComponent() {
   return (
@@ -74,11 +75,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Family Payment Tracking System" },
+      { title: orgPageTitle() },
       {
         name: "description",
-        content:
-          "Secure family payment tracking: family profiles, payment vouchers, admin approvals, expenses and credit/debit reports.",
+        content: `${ORG.name}: family profiles, payment vouchers, admin approvals, expenses and credit/debit reports.`,
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -91,7 +91,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Manrope:wght@400;500;600;700&display=swap",
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: ORG.logoSrc, type: "image/jpeg" },
     ],
   }),
   shellComponent: RootShell,
