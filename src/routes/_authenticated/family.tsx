@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/AppShell";
 import { FamilyEditor } from "@/components/family/FamilyEditor";
+import { MemberPaymentsPanel } from "@/components/family/MemberPaymentsPanel";
 import { useMyFamily } from "@/lib/auth";
 import { orgPageTitle } from "@/lib/org";
 
@@ -28,7 +29,10 @@ function MyFamilyPage() {
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading family record…</p>
       ) : family ? (
-        <FamilyEditor familyId={family.id} canEdit />
+        <div className="space-y-6">
+          <FamilyEditor familyId={family.id} canEdit />
+          <MemberPaymentsPanel familyId={family.id} />
+        </div>
       ) : (
         <div className="surface p-6 text-sm text-muted-foreground">
           No family record is linked to your login yet. Please contact the administrator.

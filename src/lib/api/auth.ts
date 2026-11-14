@@ -26,7 +26,12 @@ export const login = createServerFn({ method: "POST" })
     const { queryOne } = await import("@/lib/db");
     const { startSession } = await import("@/lib/session");
 
-    const email = loginIdentifierToEmail(data.identifier);
+    const identifier = data.identifier.trim();
+    const email = loginIdentifierToEmail(identifier);
+    const username = (
+      identifier.includes("@") ? identifier.slice(0, identifier.indexOf("@")) : identifier
+    ).toLowerCase();
+    const compact = username.replace(/[^a-z0-9]/g, "");
     const user = await queryOne<{
       id: string;
       email: string;
@@ -38,8 +43,22 @@ export const login = createServerFn({ method: "POST" })
     }>(
       `SELECT id, email, username, full_name, password_hash, is_active, session_epoch
        FROM users
-       WHERE LOWER(email) = LOWER(@email)`,
-      { email },
+       WHERE is_active
+         AND (
+           LOWER(email) = LOWER(@email)
+           OR LOWER(username) = LOWER(@username)
+           OR (
+             @compact <> ''
+             AND LOWER(REGEXP_REPLACE(COALESCE(username, ''), '[^a-zA-Z0-9]', '', 'g')) = @compact
+           )
+         )
+       ORDER BY CASE
+         WHEN LOWER(username) = LOWER(@username) THEN 0
+         WHEN LOWER(email) = LOWER(@email) THEN 1
+         ELSE 2
+       END
+       LIMIT 1`,
+      { email, username, compact },
     );
 
     if (!user || !user.is_active || !user.password_hash) {
@@ -94,8 +113,8 @@ export const changePassword = createServerFn({ method: "POST" })
     const bcrypt = (await import("bcryptjs")).default;
     const { queryOne } = await import("@/lib/db");
 
-    const user = await queryOne<{ password_hash: string | null }>(
-      `SELECT password_hash FROM users WHERE id = @userId AND is_active`,
+    const user = await queryOne<{ password_hash: string | null; app_role: string | null }>(
+      `SELECT password_hash, app_role FROM users WHERE id = @userId AND is_active`,
       { userId: context.userId },
     );
     if (!user?.password_hash) throw new Error("Account not found");
@@ -104,13 +123,17 @@ export const changePassword = createServerFn({ method: "POST" })
     if (!ok) throw new Error("Current password is incorrect");
 
     const passwordHash = await bcrypt.hash(data.newPassword, 10);
+    const { encryptSecret } = await import("@/lib/secret-box");
+    const passwordReveal = user.app_role === "family" ? encryptSecret(data.newPassword) : null;
     const { startSession } = await import("@/lib/session");
     const updated = await queryOne<{ session_epoch: number }>(
       `UPDATE users
-       SET password_hash = @hash, session_epoch = session_epoch + 1
+       SET password_hash = @hash,
+           password_reveal = COALESCE(@reveal, password_reveal),
+           session_epoch = session_epoch + 1
        WHERE id = @userId
        RETURNING session_epoch`,
-      { hash: passwordHash, userId: context.userId },
+      { hash: passwordHash, reveal: passwordReveal, userId: context.userId },
     );
     await startSession(context.user, Number(updated?.session_epoch ?? 1));
     return { ok: true };

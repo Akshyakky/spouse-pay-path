@@ -72,6 +72,7 @@ export type PaymentRow = {
   family_id: string;
   family_due_id: string | null;
   paid_by: string | null;
+  paid_by_member_id: string | null;
   mode: "cash" | "online";
   amount: number;
   payment_date: string;
@@ -93,6 +94,7 @@ export function mapPayment(row: Record<string, unknown>): PaymentRow {
     family_id: String(row["family_id"]),
     family_due_id: row["family_due_id"] ? String(row["family_due_id"]) : null,
     paid_by: (row["paid_by"] as string | null) ?? null,
+    paid_by_member_id: row["paid_by_member_id"] ? String(row["paid_by_member_id"]) : null,
     mode: row["mode"] as PaymentRow["mode"],
     amount: Number(row["amount"]),
     payment_date: toDateString(row["payment_date"]) ?? "",

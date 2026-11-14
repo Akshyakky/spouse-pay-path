@@ -252,18 +252,22 @@ export function StatCard({
   value,
   hint,
   tone = "default",
+  plain = false,
+  className,
 }: {
   label: string;
   value: string;
   hint?: string | undefined;
   tone?: "default" | "credit" | "debit" | undefined;
+  plain?: boolean | undefined;
+  className?: string | undefined;
 }) {
   return (
-    <div className="surface p-5">
+    <div className={cn(plain ? "rounded-xl border border-border p-5" : "surface p-5", className)}>
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
       <p
         className={cn(
-          "stat-value mt-2",
+          "stat-value mt-2 tabular-nums",
           tone === "credit" && "text-success",
           tone === "debit" && "text-destructive",
         )}

@@ -40,7 +40,7 @@ export function OrgMark({
 
 export function OrgLetterhead({ className }: { className?: string }) {
   return (
-    <header className={cn("flex items-start gap-3", className)}>
+    <header className={cn("flex items-center gap-3", className)}>
       <img
         src={ORG.logoSrc}
         alt={ORG.name}

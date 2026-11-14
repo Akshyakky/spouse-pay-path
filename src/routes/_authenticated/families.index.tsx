@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { KeyRound, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import {
   createFamilyWithLogin,
   deleteFamily,
@@ -12,6 +12,7 @@ import {
 } from "@/lib/api/families";
 import { uploadFile } from "@/lib/auth";
 import { AppShell } from "@/components/AppShell";
+import { FamilyLoginPanel } from "@/components/family/FamilyLoginPanel";
 import { PrivateImage } from "@/components/PrivateImage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -185,6 +186,13 @@ function FamiliesPage() {
                           Open
                         </Link>
                       </Button>
+                      {f.wife_user_id ? (
+                        <FamilyLoginDialog
+                          familyId={f.id}
+                          familyName={f.family_name}
+                          loginActive={f.login_active !== false}
+                        />
+                      ) : null}
                       <EditFamilyDialog family={f} />
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
@@ -359,6 +367,34 @@ function EditFamilyDialog({ family }: { family: FamilyRow }) {
             </Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function FamilyLoginDialog({
+  familyId,
+  familyName,
+  loginActive,
+}: {
+  familyId: string;
+  familyName: string;
+  loginActive: boolean;
+}) {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <KeyRound className="mr-1.5 size-3.5" /> Login
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Login — {familyName}</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <FamilyLoginPanel familyId={familyId} loginActive={loginActive} />
+        </DialogBody>
       </DialogContent>
     </Dialog>
   );

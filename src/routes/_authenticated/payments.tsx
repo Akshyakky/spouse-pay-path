@@ -4,7 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { listDemands, type FamilyDueRow } from "@/lib/api/dues";
-import { listFamiliesLite } from "@/lib/api/families";
+import { listFamiliesLite, listFamilyMembers } from "@/lib/api/families";
+import { relationshipLabel } from "@/lib/relationships";
 import { createPayment, decidePayment, listPayments } from "@/lib/api/payments";
 import { AppShell } from "@/components/AppShell";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -48,12 +49,18 @@ export const Route = createFileRoute("/_authenticated/payments")({
 
 type StatusFilter = "all" | "pending" | "approved" | "rejected";
 
+const NONE_DUE = "none";
+const ALL_FAMILIES = "all";
+const ALL_MEMBERS = "all";
+
 const PAGE_SIZE = 50;
 
 function PaymentsPage() {
   const { isAdmin } = useRole();
   const myFamily = useMyFamily();
   const [status, setStatus] = useState<StatusFilter>("all");
+  const [familyKey, setFamilyKey] = useState(ALL_FAMILIES);
+  const [memberKey, setMemberKey] = useState(ALL_MEMBERS);
   const [page, setPage] = useState(0);
   const queryClient = useQueryClient();
 
@@ -63,10 +70,35 @@ function PaymentsPage() {
     queryFn: () => listFamiliesLite(),
   });
 
+  const memberFamilyId = isAdmin
+    ? familyKey !== ALL_FAMILIES
+      ? familyKey
+      : null
+    : (myFamily.data?.id ?? null);
+
+  useEffect(() => {
+    setMemberKey(ALL_MEMBERS);
+    setPage(0);
+  }, [familyKey]);
+
+  const familyMembers = useQuery({
+    queryKey: ["family-members", memberFamilyId],
+    enabled: !!memberFamilyId,
+    queryFn: () => listFamilyMembers({ data: { familyId: memberFamilyId as string } }),
+  });
+
   const payments = useQuery({
-    queryKey: ["payments", status, page],
+    queryKey: ["payments", status, page, familyKey, memberKey],
     queryFn: () =>
-      listPayments({ data: { status, limit: PAGE_SIZE, offset: page * PAGE_SIZE } }),
+      listPayments({
+        data: {
+          status,
+          limit: PAGE_SIZE,
+          offset: page * PAGE_SIZE,
+          ...(isAdmin && familyKey !== ALL_FAMILIES ? { familyId: familyKey } : {}),
+          ...(memberKey !== ALL_MEMBERS ? { paidByMemberId: memberKey } : {}),
+        },
+      }),
   });
 
   const items = payments.data?.items ?? [];
@@ -98,6 +130,8 @@ function PaymentsPage() {
       queryClient.invalidateQueries({ queryKey: ["dues-demands"] });
       queryClient.invalidateQueries({ queryKey: ["dues-demand-families"] });
       queryClient.invalidateQueries({ queryKey: ["dues-family"] });
+      queryClient.invalidateQueries({ queryKey: ["member-payments"] });
+      queryClient.invalidateQueries({ queryKey: ["family-payments"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -116,25 +150,74 @@ function PaymentsPage() {
       }
     >
       <div className="surface p-6">
-        <div className="flex flex-wrap items-center gap-3">
-          <Label className="text-xs uppercase tracking-wide text-muted-foreground">Status</Label>
-          <Select
-            value={status}
-            onValueChange={(v) => {
-              setStatus(v as StatusFilter);
-              setPage(0);
-            }}
-          >
-            <SelectTrigger className="w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="approved">Approved</SelectItem>
-              <SelectItem value="rejected">Rejected</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Status</Label>
+            <Select
+              value={status}
+              onValueChange={(v) => {
+                setStatus(v as StatusFilter);
+                setPage(0);
+              }}
+            >
+              <SelectTrigger className="w-44">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {isAdmin ? (
+            <div className="min-w-[16rem] max-w-sm flex-1 space-y-1.5">
+              <Label className="text-xs uppercase tracking-wide text-muted-foreground">Family</Label>
+              <Select
+                value={familyKey}
+                onValueChange={(value) => {
+                  setFamilyKey(value);
+                  setPage(0);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_FAMILIES}>All families</SelectItem>
+                  {(families.data ?? []).map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.family_no} · {f.family_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+          <div className="min-w-[16rem] max-w-sm flex-1 space-y-1.5">
+            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Paid by</Label>
+            <Select
+              value={memberKey}
+              onValueChange={(value) => {
+                setMemberKey(value);
+                setPage(0);
+              }}
+              disabled={!memberFamilyId}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={memberFamilyId ? "All members" : "Select a family first"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_MEMBERS}>All members</SelectItem>
+                {(familyMembers.data ?? []).map((m) => (
+                  <SelectItem key={m.id} value={m.id}>
+                    {m.full_name} · {relationshipLabel(m.relationship)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
         <div className="mt-5 space-y-3">
@@ -260,14 +343,16 @@ function PaymentDialog({ familyId }: { familyId: string }) {
 
   const submit = useMutation({
     mutationFn: async (form: FormData) => {
-      if (!selectedDue) throw new Error("Select the due this payment is for");
       const amount = Number(form.get("amount"));
       if (!Number.isFinite(amount) || amount <= 0) throw new Error("Enter a valid amount");
-      if (amount > selectedDue.payable + 0.001) {
+      if (selectedDue && amount > selectedDue.payable + 0.001) {
         throw new Error(`You can pay up to ${selectedDue.payable.toFixed(2)} on this due`);
       }
       const txnRef = String(form.get("txn_ref") ?? "").trim();
       const file = form.get("screenshot") as File | null;
+
+      const paidByMemberId = String(form.get("paid_by_member_id") ?? "").trim();
+      if (!paidByMemberId) throw new Error("Select which family member paid");
 
       if (mode === "online" && !txnRef) throw new Error("Transaction reference is required");
       if (mode === "online" && (!file || file.size === 0))
@@ -279,13 +364,16 @@ function PaymentDialog({ familyId }: { familyId: string }) {
       await createPayment({
         data: {
           family_id: familyId,
-          family_due_id: selectedDue.id,
+          family_due_id: selectedDue?.id ?? null,
           amount,
           mode,
           payment_date: String(form.get("payment_date") ?? "") || todayLocalDate(),
           txn_ref: txnRef || null,
           paid_by: String(form.get("paid_by") ?? "").trim() || null,
-          remarks: String(form.get("remarks") ?? "").trim() || `Payment for ${selectedDue.title}`,
+          paid_by_member_id: paidByMemberId,
+          remarks:
+            String(form.get("remarks") ?? "").trim() ||
+            (selectedDue ? `Payment for ${selectedDue.title}` : null),
           screenshot_url: screenshotKey,
         },
       });
@@ -295,6 +383,8 @@ function PaymentDialog({ familyId }: { familyId: string }) {
       queryClient.invalidateQueries({ queryKey: ["payments"] });
       queryClient.invalidateQueries({ queryKey: ["summary"] });
       queryClient.invalidateQueries({ queryKey: ["dues-family"] });
+      queryClient.invalidateQueries({ queryKey: ["member-payments"] });
+      queryClient.invalidateQueries({ queryKey: ["family-payments"] });
       setOpen(false);
       setDueId("");
     },
@@ -318,37 +408,32 @@ function PaymentDialog({ familyId }: { familyId: string }) {
         <DialogHeader>
           <DialogTitle>Record a payment</DialogTitle>
         </DialogHeader>
-        {payableDues.length === 0 ? (
-          <DialogBody className="space-y-3 text-sm text-muted-foreground">
-            <p>Payments must settle an open due. You have no payable dues right now.</p>
-            <Button asChild variant="outline" size="sm">
-              <Link to="/dues">View dues</Link>
-            </Button>
-          </DialogBody>
-        ) : (
-          <form
-            className="flex min-h-0 flex-1 flex-col"
-            onSubmit={(e) => {
-              e.preventDefault();
-              submit.mutate(new FormData(e.currentTarget));
-            }}
-          >
-            <DialogBody className="space-y-4">
-              <div className="space-y-2">
-                <Label>Due</Label>
-                <Select value={dueId} onValueChange={setDueId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select the due this payment is for" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {payableDues.map((due) => (
-                      <SelectItem key={due.id} value={due.id}>
-                        {due.title} · {formatMoney(due.payable)} payable
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+        <form
+          className="flex min-h-0 flex-1 flex-col"
+          onSubmit={(e) => {
+            e.preventDefault();
+            submit.mutate(new FormData(e.currentTarget));
+          }}
+        >
+          <DialogBody className="space-y-4">
+            <div className="space-y-2">
+              <Label>Due</Label>
+              <Select
+                value={dueId || NONE_DUE}
+                onValueChange={(value) => setDueId(value === NONE_DUE ? "" : value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Optional — attach to a due" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NONE_DUE}>General payment (no due)</SelectItem>
+                  {payableDues.map((due) => (
+                    <SelectItem key={due.id} value={due.id}>
+                      {due.title} · {formatMoney(due.payable)} payable
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {selectedDue ? (
                 <p className="text-xs text-muted-foreground">
                   Remaining {formatMoney(selectedDue.remaining)}
@@ -356,80 +441,85 @@ function PaymentDialog({ familyId }: { familyId: string }) {
                     ? ` · ${formatMoney(selectedDue.paid_pending)} awaiting approval`
                     : ""}
                 </p>
-              ) : null}
-              <div className="grid gap-4 sm:grid-cols-2">
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  {payableDues.length === 0
+                    ? "No open due right now. You can still record a payment."
+                    : "This payment will not be applied to a due."}
+                </p>
+              )}
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="amount">Amount</Label>
+                <Input
+                  id="amount"
+                  name="amount"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  max={selectedDue?.payable}
+                  key={selectedDue?.id ?? "amount"}
+                  defaultValue={selectedDue?.payable ?? ""}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="payment_date">Payment date</Label>
+                <Input
+                  id="payment_date"
+                  name="payment_date"
+                  type="date"
+                  defaultValue={todayLocalDate()}
+                  required
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="paid_by">Paid by *</Label>
+              <PaidBySelect familyId={familyId} id="paid_by" />
+            </div>
+            <div className="space-y-2">
+              <Label>Payment mode</Label>
+              <Select value={mode} onValueChange={(v) => setMode(v as "cash" | "online")}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="online">Online transfer</SelectItem>
+                  <SelectItem value="cash">Cash</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {mode === "online" ? (
+              <>
                 <div className="space-y-2">
-                  <Label htmlFor="amount">Amount</Label>
-                  <Input
-                    id="amount"
-                    name="amount"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    max={selectedDue?.payable}
-                    key={selectedDue?.id ?? "amount"}
-                    defaultValue={selectedDue?.payable ?? ""}
-                    required
-                    disabled={!selectedDue}
-                  />
+                  <Label htmlFor="txn_ref">Transaction reference</Label>
+                  <Input id="txn_ref" name="txn_ref" required />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="payment_date">Payment date</Label>
+                  <Label htmlFor="screenshot">Payment screenshot</Label>
                   <Input
-                    id="payment_date"
-                    name="payment_date"
-                    type="date"
-                    defaultValue={todayLocalDate()}
+                    id="screenshot"
+                    name="screenshot"
+                    type="file"
+                    accept="image/*,.pdf"
                     required
                   />
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Payment mode</Label>
-                <Select value={mode} onValueChange={(v) => setMode(v as "cash" | "online")}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="online">Online transfer</SelectItem>
-                    <SelectItem value="cash">Cash</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {mode === "online" ? (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="txn_ref">Transaction reference</Label>
-                    <Input id="txn_ref" name="txn_ref" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="screenshot">Payment screenshot</Label>
-                    <Input
-                      id="screenshot"
-                      name="screenshot"
-                      type="file"
-                      accept="image/*,.pdf"
-                      required
-                    />
-                  </div>
-                </>
-              ) : null}
-              <div className="space-y-2">
-                <Label htmlFor="paid_by">Paid by</Label>
-                <PaidBySelect familyId={familyId} id="paid_by" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="remarks">Remarks</Label>
-                <Textarea id="remarks" name="remarks" rows={2} />
-              </div>
-            </DialogBody>
-            <DialogFooter>
-              <Button type="submit" disabled={submit.isPending || !selectedDue}>
-                {submit.isPending ? "Submitting…" : "Submit payment"}
-              </Button>
-            </DialogFooter>
-          </form>
-        )}
+              </>
+            ) : null}
+            <div className="space-y-2">
+              <Label htmlFor="remarks">Remarks</Label>
+              <Textarea id="remarks" name="remarks" rows={2} />
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="submit" disabled={submit.isPending}>
+              {submit.isPending ? "Submitting…" : "Submit payment"}
+            </Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

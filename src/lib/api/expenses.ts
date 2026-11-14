@@ -90,8 +90,17 @@ export const getReport = createServerFn({ method: "GET" })
     const familyScope = familyScopeSql(familyId);
     const expenseScope = familyScopeSql(familyId, "e.family_id");
 
-    const payments = await query(
-      `SELECT id, voucher_no, amount, status, payment_date, mode
+    const payments = await query<{
+      id: string;
+      voucher_no: string;
+      amount: number;
+      status: string;
+      payment_date: string;
+      mode: string;
+      paid_by: string | null;
+      paid_by_member_id: string | null;
+    }>(
+      `SELECT id, voucher_no, amount, status, payment_date, mode, paid_by, paid_by_member_id
        FROM payments
        WHERE payment_date >= @fromDate AND payment_date <= @toDate${familyScope.sql}
        ORDER BY payment_date DESC`,
@@ -117,6 +126,8 @@ export const getReport = createServerFn({ method: "GET" })
         status: String(p.status),
         payment_date: toDateString(p.payment_date) ?? "",
         mode: String(p.mode),
+        paid_by: p.paid_by,
+        paid_by_member_id: p.paid_by_member_id ? String(p.paid_by_member_id) : null,
       })),
       expenses,
     };

@@ -31,6 +31,7 @@ CREATE TABLE users (
     username      VARCHAR(100) NULL,
     full_name     VARCHAR(200) NULL,
     password_hash VARCHAR(255) NULL,
+    password_reveal TEXT NULL,
     app_role      VARCHAR(20)  NULL,
     is_active     BOOLEAN NOT NULL DEFAULT TRUE,
     session_epoch INTEGER NOT NULL DEFAULT 1,
@@ -154,6 +155,7 @@ CREATE TABLE payments (
     family_id      UUID NOT NULL REFERENCES families(id) ON DELETE CASCADE,
     family_due_id  UUID NULL REFERENCES family_dues(id),
     paid_by        VARCHAR(200) NULL,
+    paid_by_member_id UUID NULL REFERENCES family_members(id) ON DELETE SET NULL,
     mode           VARCHAR(20) NOT NULL,
     amount         NUMERIC(12, 2) NOT NULL,
     payment_date   DATE NOT NULL DEFAULT (timezone('utc', now()))::date,
@@ -196,6 +198,7 @@ CREATE INDEX ix_payments_status ON payments (status);
 CREATE INDEX ix_payments_payment_date ON payments (payment_date);
 CREATE INDEX ix_payments_created_by ON payments (created_by);
 CREATE INDEX ix_payments_family_due_id ON payments (family_due_id);
+CREATE INDEX ix_payments_paid_by_member_id ON payments (paid_by_member_id);
 CREATE INDEX ix_family_dues_family_id ON family_dues (family_id);
 CREATE INDEX ix_family_dues_demand_id ON family_dues (demand_id);
 CREATE INDEX ix_expenses_family_id ON expenses (family_id);

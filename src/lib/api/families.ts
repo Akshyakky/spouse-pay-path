@@ -505,14 +505,47 @@ export const resetFamilyPassword = createServerFn({ method: "POST" })
     const { getFamilyLoginUserId } = await import("@/lib/api/users");
     const userId = await getFamilyLoginUserId(data.familyId);
     const passwordHash = await bcrypt.hash(data.password, 10);
+    const { encryptSecret } = await import("@/lib/secret-box");
     const n = await execute(
       `UPDATE users
-       SET password_hash = @hash, session_epoch = session_epoch + 1
+       SET password_hash = @hash, password_reveal = @reveal, session_epoch = session_epoch + 1
        WHERE id = @userId`,
-      { hash: passwordHash, userId },
+      { hash: passwordHash, reveal: encryptSecret(data.password), userId },
     );
     if (!n) throw new Error("User not found");
     return { ok: true };
+  });
+
+export const getFamilyLogin = createServerFn({ method: "GET" })
+  .middleware([requireAdmin])
+  .inputValidator((input: unknown) => z.object({ familyId: z.string().uuid() }).parse(input))
+  .handler(async ({ data }) => {
+    const { queryOne } = await import("@/lib/db");
+    const { decryptSecret } = await import("@/lib/secret-box");
+    const row = await queryOne<{
+      username: string | null;
+      email: string;
+      password_reveal: string | null;
+    }>(
+      `SELECT u.username, u.email, u.password_reveal
+       FROM families f
+       JOIN users u ON u.id = f.wife_user_id
+       WHERE f.id = @familyId`,
+      { familyId: data.familyId },
+    );
+    if (!row) throw new Error("This family has no login");
+    let password: string | null = null;
+    if (row.password_reveal) {
+      try {
+        password = decryptSecret(row.password_reveal);
+      } catch {
+        password = null;
+      }
+    }
+    return {
+      username: row.username || row.email.split("@")[0] || "",
+      password,
+    };
   });
 
 export const setFamilyLoginActive = createServerFn({ method: "POST" })

@@ -66,6 +66,45 @@ async function ensureSchema(): Promise<void> {
   if (!schemaReady) {
     schemaReady = getPool()
       .query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS session_epoch INTEGER NOT NULL DEFAULT 1`)
+      .then(() =>
+        getPool().query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reveal TEXT NULL`),
+      )
+      .then(() =>
+        getPool().query(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS paid_by_member_id UUID NULL`),
+      )
+      .then(() =>
+        getPool().query(
+          `CREATE INDEX IF NOT EXISTS ix_payments_paid_by_member_id ON payments (paid_by_member_id)`,
+        ),
+      )
+      .then(() =>
+        getPool().query(`
+          DO $$ BEGIN
+            ALTER TABLE payments
+              ADD CONSTRAINT fk_payments_paid_by_member
+              FOREIGN KEY (paid_by_member_id) REFERENCES family_members(id) ON DELETE SET NULL;
+          EXCEPTION WHEN duplicate_object THEN NULL;
+          END $$;
+        `),
+      )
+      .then(() =>
+        getPool().query(`
+          UPDATE payments p
+          SET paid_by_member_id = m.id
+          FROM family_members m
+          WHERE p.paid_by_member_id IS NULL
+            AND p.paid_by IS NOT NULL
+            AND TRIM(p.paid_by) <> ''
+            AND m.family_id = p.family_id
+            AND LOWER(TRIM(m.full_name)) = LOWER(TRIM(p.paid_by))
+            AND NOT EXISTS (
+              SELECT 1 FROM family_members m2
+              WHERE m2.family_id = p.family_id
+                AND m2.id <> m.id
+                AND LOWER(TRIM(m2.full_name)) = LOWER(TRIM(p.paid_by))
+            )
+        `),
+      )
       .then(() => undefined)
       .catch((err) => {
         schemaReady = null;

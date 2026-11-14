@@ -11,18 +11,19 @@ import {
 } from "@/components/ui/select";
 
 /**
- * Picks one of the family's members as the payer. Payments store the payer's
- * name, so the selected member's name is submitted through a hidden input while
- * the dropdown itself tracks member ids (names can repeat within a family).
+ * Picks one of the family's members as the payer. Payments store the member id
+ * and name so later history can be grouped member-wise.
  */
 export function PaidBySelect({
   familyId,
   id,
   name = "paid_by",
+  required = true,
 }: {
   familyId: string;
   id?: string | undefined;
   name?: string | undefined;
+  required?: boolean | undefined;
 }) {
   const [selectedId, setSelectedId] = useState("");
 
@@ -42,10 +43,20 @@ export function PaidBySelect({
       : "Select family member";
 
   return (
-    <>
+    <div className="space-y-1.5">
       <input type="hidden" name={name} value={selected?.full_name ?? ""} />
+      <input
+        id={id}
+        name={`${name}_member_id`}
+        value={selectedId}
+        required={required}
+        onChange={() => {}}
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
+      />
       <Select value={selectedId} onValueChange={setSelectedId} disabled={list.length === 0}>
-        <SelectTrigger id={id}>
+        <SelectTrigger id={id ? `${id}-trigger` : undefined} aria-required={required || undefined}>
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
         <SelectContent>
@@ -57,6 +68,11 @@ export function PaidBySelect({
           ))}
         </SelectContent>
       </Select>
-    </>
+      {required && !members.isLoading && list.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          Add family members first. Paid by is required so payment history can be kept per person.
+        </p>
+      ) : null}
+    </div>
   );
 }

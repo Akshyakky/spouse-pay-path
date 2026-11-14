@@ -407,6 +407,9 @@ function PayDueDialog({ familyId, due }: { familyId: string; due: FamilyDueRow }
       }
       const txnRef = String(form.get("txn_ref") ?? "").trim();
       const file = form.get("screenshot") as File | null;
+      const paidByMemberId = String(form.get("paid_by_member_id") ?? "").trim();
+      if (!paidByMemberId) throw new Error("Select which family member paid");
+
       if (mode === "online" && !txnRef) throw new Error("Transaction reference is required");
       if (mode === "online" && (!file || file.size === 0)) {
         throw new Error("Please attach the payment screenshot");
@@ -424,6 +427,7 @@ function PayDueDialog({ familyId, due }: { familyId: string; due: FamilyDueRow }
             String(form.get("payment_date") ?? "") || todayLocalDate(),
           txn_ref: txnRef || null,
           paid_by: String(form.get("paid_by") ?? "").trim() || null,
+          paid_by_member_id: paidByMemberId,
           remarks: String(form.get("remarks") ?? "").trim() || `Payment for ${due.title}`,
           screenshot_url: screenshotKey,
         },
@@ -434,6 +438,8 @@ function PayDueDialog({ familyId, due }: { familyId: string; due: FamilyDueRow }
       queryClient.invalidateQueries({ queryKey: ["dues-family"] });
       queryClient.invalidateQueries({ queryKey: ["payments"] });
       queryClient.invalidateQueries({ queryKey: ["summary"] });
+      queryClient.invalidateQueries({ queryKey: ["member-payments"] });
+      queryClient.invalidateQueries({ queryKey: ["family-payments"] });
       setOpen(false);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -477,6 +483,20 @@ function PayDueDialog({ familyId, due }: { familyId: string; due: FamilyDueRow }
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor={`payment_date_${due.id}`}>Payment date</Label>
+              <Input
+                id={`payment_date_${due.id}`}
+                name="payment_date"
+                type="date"
+                defaultValue={todayLocalDate()}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor={`paid_by_${due.id}`}>Paid by *</Label>
+              <PaidBySelect familyId={familyId} id={`paid_by_${due.id}`} />
+            </div>
+            <div className="space-y-2">
               <Label>Mode</Label>
               <Select value={mode} onValueChange={(v) => setMode(v as "cash" | "online")}>
                 <SelectTrigger>
@@ -487,16 +507,6 @@ function PayDueDialog({ familyId, due }: { familyId: string; due: FamilyDueRow }
                   <SelectItem value="cash">Cash</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor={`payment_date_${due.id}`}>Payment date</Label>
-              <Input
-                id={`payment_date_${due.id}`}
-                name="payment_date"
-                type="date"
-                defaultValue={todayLocalDate()}
-                required
-              />
             </div>
             {mode === "online" ? (
               <>
@@ -516,10 +526,6 @@ function PayDueDialog({ familyId, due }: { familyId: string; due: FamilyDueRow }
                 </div>
               </>
             ) : null}
-            <div className="space-y-2">
-              <Label htmlFor={`paid_by_${due.id}`}>Paid by</Label>
-              <PaidBySelect familyId={familyId} id={`paid_by_${due.id}`} />
-            </div>
             <div className="space-y-2">
               <Label htmlFor={`remarks_${due.id}`}>Remarks</Label>
               <Textarea id={`remarks_${due.id}`} name="remarks" rows={2} />

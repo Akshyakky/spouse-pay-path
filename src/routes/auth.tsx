@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { getSessionUser, login } from "@/lib/api/auth";
-import { loginIdentifierToEmail } from "@/lib/auth";
 import { OrgContactText, OrgMark } from "@/components/OrgBrand";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -57,8 +56,6 @@ function AuthPage() {
     }
     setBusy(true);
     try {
-      // Normalize identifier the same way as before (email or username@family.local)
-      void loginIdentifierToEmail(parsed.data.identifier);
       await login({
         data: {
           identifier: parsed.data.identifier,

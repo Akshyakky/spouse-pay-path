@@ -26,15 +26,18 @@ export async function createUserRecord(
   if (existing) throw new Error("A user with that email/username already exists");
 
   const passwordHash = await bcrypt.hash(input.password, 10);
+  const { encryptSecret } = await import("@/lib/secret-box");
+  const passwordReveal = input.appRole === "family" ? encryptSecret(input.password) : null;
   const row = await db.queryOne<{ id: string }>(
-    `INSERT INTO users (email, username, full_name, password_hash, app_role)
-     VALUES (@email, @username, @fullName, @passwordHash, @appRole)
+    `INSERT INTO users (email, username, full_name, password_hash, password_reveal, app_role)
+     VALUES (@email, @username, @fullName, @passwordHash, @passwordReveal, @appRole)
      RETURNING id`,
     {
       email: input.email.toLowerCase(),
       username: input.username ?? null,
       fullName: input.fullName ?? "",
       passwordHash,
+      passwordReveal,
       appRole: input.appRole,
     },
   );
@@ -71,7 +74,7 @@ export async function deactivateFamilyLogin(
     `UPDATE users u
      SET is_active = FALSE,
          session_epoch = session_epoch + 1
-         ${options?.clearPassword ? ", password_hash = NULL" : ""}
+         ${options?.clearPassword ? ", password_hash = NULL, password_reveal = NULL" : ""}
      WHERE u.id = @userId AND ${familyLoginWhere}`,
     { userId },
   );
