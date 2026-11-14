@@ -9,24 +9,39 @@ export const listPayments = createServerFn({ method: "GET" })
       .object({
         status: z.enum(["all", "pending", "approved", "rejected"]).optional(),
         familyId: z.string().uuid().optional(),
-        limit: z.number().int().positive().max(200).optional(),
+        limit: z.number().int().positive().max(100).optional(),
+        offset: z.number().int().min(0).optional(),
       })
       .optional()
       .parse(input ?? {}),
   )
   .handler(async ({ data, context }) => {
-    const { query } = await import("@/lib/db");
+    const { query, queryOne } = await import("@/lib/db");
     const { mapPayment } = await import("@/lib/api/mappers");
-    const { getOwnedFamilyId } = await import("@/lib/api/access");
+    const { familyScopeSql, getOwnedFamilyId } = await import("@/lib/api/access");
 
     const status = data?.status ?? "all";
-    const limit = data?.limit ?? 200;
+    const limit = data?.limit ?? 50;
+    const offset = data?.offset ?? 0;
     let familyFilter: string | null = data?.familyId ?? null;
 
     if (!context.isAdmin) {
       familyFilter = await getOwnedFamilyId(context.userId);
-      if (!familyFilter) return [];
+      if (!familyFilter) return { items: [], total: 0, limit, offset };
     }
+
+    const familyScope = familyScopeSql(familyFilter);
+
+    const count = await queryOne<{ total: number }>(
+      `SELECT COUNT(*)::int AS total
+       FROM payments
+       WHERE (@status = 'all' OR status = @status)${familyScope.sql}`,
+      { status, ...familyScope.params },
+    );
+
+    // Oldest pending first so the review queue never hides early submissions.
+    const orderBy =
+      status === "pending" ? "payment_date ASC, created_at ASC" : "payment_date DESC, created_at DESC";
 
     const rows = await query(
       `SELECT
@@ -34,13 +49,17 @@ export const listPayments = createServerFn({ method: "GET" })
           screenshot_url, remarks, status, admin_remarks, approved_by, approved_at,
           created_by, created_at
        FROM payments
-       WHERE (@familyId IS NULL OR family_id = @familyId)
-         AND (@status = 'all' OR status = @status)
-       ORDER BY payment_date DESC, created_at DESC
-       LIMIT @limit`,
-      { limit, familyId: familyFilter, status },
+       WHERE (@status = 'all' OR status = @status)${familyScope.sql}
+       ORDER BY ${orderBy}
+       LIMIT @limit OFFSET @offset`,
+      { limit, offset, status, ...familyScope.params },
     );
-    return rows.map(mapPayment);
+    return {
+      items: rows.map(mapPayment),
+      total: Number(count?.total ?? 0),
+      limit,
+      offset,
+    };
   });
 
 export const getPaymentById = createServerFn({ method: "GET" })
@@ -93,7 +112,7 @@ export const createPayment = createServerFn({ method: "POST" })
     z
       .object({
         family_id: z.string().uuid(),
-        family_due_id: z.string().uuid().optional().nullable(),
+        family_due_id: z.string().uuid(),
         amount: z.number().positive(),
         mode: z.enum(["cash", "online"]),
         payment_date: z.string().min(8).max(20),
@@ -105,7 +124,7 @@ export const createPayment = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { execute, queryOne } = await import("@/lib/db");
+    const { withTransaction } = await import("@/lib/db");
     const { assertCanAccessFamily } = await import("@/lib/api/access");
 
     if (context.isAdmin) throw new Error("Administrators review payments; families submit them");
@@ -118,9 +137,10 @@ export const createPayment = createServerFn({ method: "POST" })
       throw new Error("Please attach the payment screenshot");
     }
 
-    let familyDueId: string | null = data.family_due_id || null;
-    if (familyDueId) {
-      const due = await queryOne<{
+    const familyDueId = data.family_due_id;
+
+    await withTransaction(async (sql) => {
+      const due = await sql.queryOne<{
         id: string;
         family_id: string;
         amount_due: number;
@@ -129,14 +149,15 @@ export const createPayment = createServerFn({ method: "POST" })
         `SELECT d.id, d.family_id, d.amount_due, pd.status AS demand_status
          FROM family_dues d
          INNER JOIN payment_demands pd ON pd.id = d.demand_id
-         WHERE d.id = @id`,
+         WHERE d.id = @id
+         FOR UPDATE OF d`,
         { id: familyDueId },
       );
       if (!due) throw new Error("Due not found");
       if (String(due.family_id) !== data.family_id) throw new Error("Due does not belong to this family");
       if (due.demand_status !== "open") throw new Error("This due is closed");
 
-      const paid = await queryOne<{ approved: number; pending: number }>(
+      const paid = await sql.queryOne<{ approved: number; pending: number }>(
         `SELECT
             COALESCE(SUM(CASE WHEN status = 'approved' THEN amount ELSE 0 END), 0) AS approved,
             COALESCE(SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END), 0) AS pending
@@ -151,26 +172,26 @@ export const createPayment = createServerFn({ method: "POST" })
       if (data.amount > payable + 0.001) {
         throw new Error(`Amount exceeds remaining payable (${payable.toFixed(2)})`);
       }
-    }
 
-    await execute(
-      `INSERT INTO payments
-         (family_id, family_due_id, created_by, status, amount, mode, payment_date, txn_ref, paid_by, remarks, screenshot_url)
-       VALUES
-         (@familyId, @familyDueId, @createdBy, 'pending', @amount, @mode, @paymentDate, @txnRef, @paidBy, @remarks, @screenshot)`,
-      {
-        familyId: data.family_id,
-        familyDueId,
-        createdBy: context.userId,
-        amount: data.amount,
-        mode: data.mode,
-        paymentDate: data.payment_date,
-        txnRef: data.txn_ref || null,
-        paidBy: data.paid_by || null,
-        remarks: data.remarks || null,
-        screenshot: data.screenshot_url || null,
-      },
-    );
+      await sql.execute(
+        `INSERT INTO payments
+           (family_id, family_due_id, created_by, status, amount, mode, payment_date, txn_ref, paid_by, remarks, screenshot_url)
+         VALUES
+           (@familyId, @familyDueId, @createdBy, 'pending', @amount, @mode, @paymentDate, @txnRef, @paidBy, @remarks, @screenshot)`,
+        {
+          familyId: data.family_id,
+          familyDueId,
+          createdBy: context.userId,
+          amount: data.amount,
+          mode: data.mode,
+          paymentDate: data.payment_date,
+          txnRef: data.txn_ref || null,
+          paidBy: data.paid_by || null,
+          remarks: data.remarks || null,
+          screenshot: data.screenshot_url || null,
+        },
+      );
+    });
     return { ok: true };
   });
 
@@ -208,7 +229,7 @@ export const getDashboardSummary = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }) => {
     const { query } = await import("@/lib/db");
-    const { getOwnedFamilyId } = await import("@/lib/api/access");
+    const { familyScopeSql, getOwnedFamilyId } = await import("@/lib/api/access");
 
     let familyId: string | null = null;
     if (!context.isAdmin) {
@@ -218,17 +239,20 @@ export const getDashboardSummary = createServerFn({ method: "GET" })
       }
     }
 
+    const familyScope = familyScopeSql(familyId);
+
     const payments = await query<{ amount: number; status: string }>(
       `SELECT amount, status FROM payments
-       WHERE (@familyId IS NULL OR family_id = @familyId)`,
-      { familyId },
+       WHERE 1=1${familyScope.sql}`,
+      familyScope.params,
     );
 
-    let debit = 0;
-    if (context.isAdmin) {
-      const expenses = await query<{ amount: number }>(`SELECT amount FROM expenses`);
-      debit = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
-    }
+    const expenses = await query<{ amount: number }>(
+      `SELECT amount FROM expenses
+       WHERE 1=1${familyScope.sql}`,
+      familyScope.params,
+    );
+    const debit = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
 
     const credit = payments
       .filter((p) => p.status === "approved")

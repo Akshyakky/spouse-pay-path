@@ -10,6 +10,7 @@ export type SessionUser = {
 export type AppSessionData = {
   user: SessionUser;
   lastSeenAt: number;
+  epoch: number;
 };
 
 const COOKIE_NAME = "spp_session";
@@ -43,9 +44,9 @@ export async function getAppSession() {
   });
 }
 
-export async function startSession(user: SessionUser): Promise<void> {
+export async function startSession(user: SessionUser, epoch: number): Promise<void> {
   const session = await getAppSession();
-  await session.update({ user, lastSeenAt: Date.now() });
+  await session.update({ user, lastSeenAt: Date.now(), epoch });
 }
 
 export async function endSession(): Promise<void> {
@@ -61,6 +62,16 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   const now = Date.now();
   const lastSeenAt = session.data.lastSeenAt ?? 0;
   if (now - lastSeenAt > IDLE_TIMEOUT_MS) {
+    await session.clear();
+    return null;
+  }
+
+  const { queryOne } = await import("@/lib/db");
+  const live = await queryOne<{ is_active: boolean; session_epoch: number }>(
+    `SELECT is_active, session_epoch FROM users WHERE id = @userId`,
+    { userId: user.id },
+  );
+  if (!live?.is_active || Number(live.session_epoch) !== Number(session.data.epoch ?? 0)) {
     await session.clear();
     return null;
   }

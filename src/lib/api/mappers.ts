@@ -15,6 +15,11 @@ export function mapFamily(row: Record<string, unknown>) {
     contact_email: (row["contact_email"] as string | null) ?? null,
     family_photo_url: (row["family_photo_url"] as string | null) ?? null,
     wife_user_id: row["wife_user_id"] ? String(row["wife_user_id"]) : null,
+    login_active: row["wife_user_id"]
+      ? row["login_active"] == null
+        ? null
+        : Boolean(row["login_active"])
+      : null,
     created_by: row["created_by"] ? String(row["created_by"]) : null,
     created_at: row["created_at"] ? String(row["created_at"]) : "",
     updated_at: row["updated_at"] ? String(row["updated_at"]) : "",
@@ -111,6 +116,8 @@ export type ExpenseRow = {
   description: string | null;
   attachment_url: string | null;
   family_id: string | null;
+  family_no: string | null;
+  family_name: string | null;
   created_by: string | null;
   created_by_name: string | null;
   created_at: string;
@@ -125,6 +132,8 @@ export function mapExpense(row: Record<string, unknown>): ExpenseRow {
     description: (row["description"] as string | null) ?? null,
     attachment_url: (row["attachment_url"] as string | null) ?? null,
     family_id: row["family_id"] ? String(row["family_id"]) : null,
+    family_no: (row["family_no"] as string | null) ?? null,
+    family_name: (row["family_name"] as string | null) ?? null,
     created_by: row["created_by"] ? String(row["created_by"]) : null,
     created_by_name: (row["created_by_name"] as string | null) ?? null,
     created_at: row["created_at"] ? String(row["created_at"]) : "",

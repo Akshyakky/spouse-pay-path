@@ -2,12 +2,20 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { getReport } from "@/lib/api/expenses";
+import { listFamiliesLite } from "@/lib/api/families";
 import { AppShell, StatCard } from "@/components/AppShell";
 import { StatusBadge } from "@/components/StatusBadge";
-import { formatMoney, useRole } from "@/lib/auth";
+import { formatMoney, todayLocalDate, useRole } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const Route = createFileRoute("/_authenticated/reports")({
   head: () => ({
@@ -22,16 +30,30 @@ export const Route = createFileRoute("/_authenticated/reports")({
   component: ReportsPage,
 });
 
+const ALL_FAMILIES = "all";
+
 function ReportsPage() {
   const { isAdmin } = useRole();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayLocalDate();
   const firstOfYear = `${new Date().getFullYear()}-01-01`;
   const [from, setFrom] = useState(firstOfYear);
   const [to, setTo] = useState(today);
+  const [familyKey, setFamilyKey] = useState(ALL_FAMILIES);
+
+  const families = useQuery({
+    queryKey: ["families-lite"],
+    enabled: isAdmin,
+    queryFn: () => listFamiliesLite(),
+  });
+
+  const reportFamilyId = isAdmin && familyKey !== ALL_FAMILIES ? familyKey : null;
 
   const report = useQuery({
-    queryKey: ["report", from, to, isAdmin],
-    queryFn: () => getReport({ data: { from, to } }),
+    queryKey: ["report", from, to, isAdmin, reportFamilyId],
+    queryFn: () =>
+      getReport({
+        data: reportFamilyId ? { from, to, familyId: reportFamilyId } : { from, to },
+      }),
   });
 
   const credit = (report.data?.payments ?? [])
@@ -54,6 +76,24 @@ function ReportsPage() {
             <Label htmlFor="to">To</Label>
             <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
           </div>
+          {isAdmin ? (
+            <div className="space-y-2">
+              <Label>Family</Label>
+              <Select value={familyKey} onValueChange={setFamilyKey}>
+                <SelectTrigger className="w-56">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_FAMILIES}>All families</SelectItem>
+                  {(families.data ?? []).map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.family_no} · {f.family_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
           <Button type="button" variant="outline" onClick={() => window.print()}>
             Print report
           </Button>
@@ -63,9 +103,9 @@ function ReportsPage() {
           <StatCard label="Credit" value={formatMoney(credit)} tone="credit" />
           <StatCard
             label="Debit"
-            value={isAdmin ? formatMoney(debit) : "—"}
+            value={formatMoney(debit)}
             tone="debit"
-            hint={isAdmin ? undefined : "Admin only"}
+            hint={isAdmin ? undefined : "Expenses assigned to your family"}
           />
           <StatCard label="Balance" value={formatMoney(credit - debit)} />
         </div>
@@ -85,23 +125,26 @@ function ReportsPage() {
           ) : null}
         </div>
 
-        {isAdmin ? (
-          <>
-            <h2 className="mt-8 text-base font-semibold">Expenses</h2>
-            <div className="mt-3 divide-y divide-border">
-              {(report.data?.expenses ?? []).map((e) => (
-                <div key={e.id} className="flex items-center justify-between gap-3 py-2 text-sm">
-                  <span className="font-medium">{e.category}</span>
-                  <span className="text-muted-foreground">{e.expense_date}</span>
-                  <span className="font-medium text-destructive">{formatMoney(e.amount)}</span>
-                </div>
-              ))}
-              {(report.data?.expenses ?? []).length === 0 ? (
-                <p className="py-2 text-sm text-muted-foreground">No expenses in this period.</p>
-              ) : null}
+        <h2 className="mt-8 text-base font-semibold">Expenses</h2>
+        <div className="mt-3 divide-y divide-border">
+          {(report.data?.expenses ?? []).map((e) => (
+            <div key={e.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+              <span className="font-medium">{e.category}</span>
+              <span className="text-muted-foreground">
+                {e.expense_date}
+                {isAdmin
+                  ? e.family_no
+                    ? ` · ${e.family_no}`
+                    : " · Shared"
+                  : ""}
+              </span>
+              <span className="font-medium text-destructive">{formatMoney(e.amount)}</span>
             </div>
-          </>
-        ) : null}
+          ))}
+          {(report.data?.expenses ?? []).length === 0 ? (
+            <p className="py-2 text-sm text-muted-foreground">No expenses in this period.</p>
+          ) : null}
+        </div>
       </div>
     </AppShell>
   );

@@ -109,6 +109,16 @@ try {
     }
   }
 
+  const dues = await pool.query(`
+    INSERT INTO family_dues (demand_id, family_id, amount_due)
+    SELECT pd.id, f.id, pd.amount_per_family
+    FROM payment_demands pd
+    CROSS JOIN families f
+    WHERE pd.status = 'open'
+    ON CONFLICT (demand_id, family_id) DO NOTHING
+  `);
+  console.log(`Assigned open dues to families (${dues.rowCount ?? 0} new due rows).`);
+
   const loginPath = resolve(process.cwd(), "family-logins.csv");
   writeFileSync(
     loginPath,

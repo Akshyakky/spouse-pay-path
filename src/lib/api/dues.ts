@@ -130,6 +130,19 @@ export const listDemandFamilies = createServerFn({ method: "GET" })
     return rows.map(mapFamilyDue);
   });
 
+/** Attach every open demand to families that do not already have it. */
+export async function assignMissingOpenDues() {
+  const { execute } = await import("@/lib/db");
+  return execute(
+    `INSERT INTO family_dues (demand_id, family_id, amount_due)
+     SELECT pd.id, f.id, pd.amount_per_family
+     FROM payment_demands pd
+     CROSS JOIN families f
+     WHERE pd.status = 'open'
+     ON CONFLICT (demand_id, family_id) DO NOTHING`,
+  );
+}
+
 export const createDemand = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .inputValidator((input: unknown) =>
@@ -173,6 +186,8 @@ export const createDemand = createServerFn({ method: "POST" })
         },
       );
     }
+
+    await assignMissingOpenDues();
 
     return { id: String(demand.id), familyCount: families.length };
   });

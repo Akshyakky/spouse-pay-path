@@ -1,15 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
+import { listDemands, type FamilyDueRow } from "@/lib/api/dues";
 import { listFamiliesLite } from "@/lib/api/families";
 import { createPayment, decidePayment, listPayments } from "@/lib/api/payments";
 import { AppShell } from "@/components/AppShell";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PrivateFileLink } from "@/components/PrivateImage";
 import { PaidBySelect } from "@/components/PaidBySelect";
-import { formatMoney, uploadFile, useMyFamily, useRole } from "@/lib/auth";
+import { formatMoney, todayLocalDate, uploadFile, useMyFamily, useRole } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,10 +47,13 @@ export const Route = createFileRoute("/_authenticated/payments")({
 
 type StatusFilter = "all" | "pending" | "approved" | "rejected";
 
+const PAGE_SIZE = 50;
+
 function PaymentsPage() {
   const { isAdmin } = useRole();
   const myFamily = useMyFamily();
   const [status, setStatus] = useState<StatusFilter>("all");
+  const [page, setPage] = useState(0);
   const queryClient = useQueryClient();
 
   const families = useQuery({
@@ -59,9 +63,18 @@ function PaymentsPage() {
   });
 
   const payments = useQuery({
-    queryKey: ["payments", status],
-    queryFn: () => listPayments({ data: { status } }),
+    queryKey: ["payments", status, page],
+    queryFn: () =>
+      listPayments({ data: { status, limit: PAGE_SIZE, offset: page * PAGE_SIZE } }),
   });
+
+  const items = payments.data?.items ?? [];
+  const total = payments.data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  useEffect(() => {
+    if (page > pageCount - 1) setPage(Math.max(0, pageCount - 1));
+  }, [page, pageCount]);
 
   const decide = useMutation({
     mutationFn: async ({
@@ -104,7 +117,13 @@ function PaymentsPage() {
       <div className="surface p-6">
         <div className="flex flex-wrap items-center gap-3">
           <Label className="text-xs uppercase tracking-wide text-muted-foreground">Status</Label>
-          <Select value={status} onValueChange={(v) => setStatus(v as StatusFilter)}>
+          <Select
+            value={status}
+            onValueChange={(v) => {
+              setStatus(v as StatusFilter);
+              setPage(0);
+            }}
+          >
             <SelectTrigger className="w-44">
               <SelectValue />
             </SelectTrigger>
@@ -118,7 +137,7 @@ function PaymentsPage() {
         </div>
 
         <div className="mt-5 space-y-3">
-          {(payments.data ?? []).map((p) => (
+          {items.map((p) => (
             <article
               key={p.id}
               className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-border p-4"
@@ -188,10 +207,35 @@ function PaymentsPage() {
               </div>
             </article>
           ))}
-          {(payments.data ?? []).length === 0 ? (
+          {items.length === 0 ? (
             <p className="text-sm text-muted-foreground">No payments to show.</p>
           ) : null}
         </div>
+        {total > PAGE_SIZE ? (
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              {total} payments · page {page + 1} of {pageCount}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={page <= 0}
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+              >
+                Previous
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={page >= pageCount - 1}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </AppShell>
   );
@@ -200,12 +244,27 @@ function PaymentsPage() {
 function PaymentDialog({ familyId }: { familyId: string }) {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"cash" | "online">("online");
+  const [dueId, setDueId] = useState("");
   const queryClient = useQueryClient();
+
+  const dues = useQuery({
+    queryKey: ["dues-family"],
+    queryFn: () => listDemands(),
+  });
+
+  const payableDues = ((dues.data ?? []) as FamilyDueRow[]).filter(
+    (d) => d.demand_status === "open" && d.payable > 0,
+  );
+  const selectedDue = payableDues.find((d) => d.id === dueId);
 
   const submit = useMutation({
     mutationFn: async (form: FormData) => {
+      if (!selectedDue) throw new Error("Select the due this payment is for");
       const amount = Number(form.get("amount"));
       if (!Number.isFinite(amount) || amount <= 0) throw new Error("Enter a valid amount");
+      if (amount > selectedDue.payable + 0.001) {
+        throw new Error(`You can pay up to ${selectedDue.payable.toFixed(2)} on this due`);
+      }
       const txnRef = String(form.get("txn_ref") ?? "").trim();
       const file = form.get("screenshot") as File | null;
 
@@ -219,13 +278,13 @@ function PaymentDialog({ familyId }: { familyId: string }) {
       await createPayment({
         data: {
           family_id: familyId,
+          family_due_id: selectedDue.id,
           amount,
           mode,
-          payment_date:
-            String(form.get("payment_date") ?? "") || new Date().toISOString().slice(0, 10),
+          payment_date: String(form.get("payment_date") ?? "") || todayLocalDate(),
           txn_ref: txnRef || null,
           paid_by: String(form.get("paid_by") ?? "").trim() || null,
-          remarks: String(form.get("remarks") ?? "").trim() || null,
+          remarks: String(form.get("remarks") ?? "").trim() || `Payment for ${selectedDue.title}`,
           screenshot_url: screenshotKey,
         },
       });
@@ -234,13 +293,21 @@ function PaymentDialog({ familyId }: { familyId: string }) {
       toast.success("Payment submitted for approval");
       queryClient.invalidateQueries({ queryKey: ["payments"] });
       queryClient.invalidateQueries({ queryKey: ["summary"] });
+      queryClient.invalidateQueries({ queryKey: ["dues-family"] });
       setOpen(false);
+      setDueId("");
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setDueId("");
+      }}
+    >
       <DialogTrigger asChild>
         <Button size="sm">
           <Plus className="mr-2 size-4" /> Add payment
@@ -250,69 +317,118 @@ function PaymentDialog({ familyId }: { familyId: string }) {
         <DialogHeader>
           <DialogTitle>Record a payment</DialogTitle>
         </DialogHeader>
-        <form
-          className="flex min-h-0 flex-1 flex-col"
-          onSubmit={(e) => {
-            e.preventDefault();
-            submit.mutate(new FormData(e.currentTarget));
-          }}
-        >
-          <DialogBody className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="amount">Amount</Label>
-              <Input id="amount" name="amount" type="number" step="0.01" min="0.01" required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="payment_date">Payment date</Label>
-              <Input
-                id="payment_date"
-                name="payment_date"
-                type="date"
-                defaultValue={new Date().toISOString().slice(0, 10)}
-                required
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Payment mode</Label>
-            <Select value={mode} onValueChange={(v) => setMode(v as "cash" | "online")}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="online">Online transfer</SelectItem>
-                <SelectItem value="cash">Cash</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {mode === "online" ? (
-            <>
-              <div className="space-y-2">
-                <Label htmlFor="txn_ref">Transaction reference</Label>
-                <Input id="txn_ref" name="txn_ref" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="screenshot">Payment screenshot</Label>
-                <Input id="screenshot" name="screenshot" type="file" accept="image/*,.pdf" required />
-              </div>
-            </>
-          ) : null}
-          <div className="space-y-2">
-            <Label htmlFor="paid_by">Paid by</Label>
-            <PaidBySelect familyId={familyId} id="paid_by" />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="remarks">Remarks</Label>
-            <Textarea id="remarks" name="remarks" rows={2} />
-          </div>
-          </DialogBody>
-          <DialogFooter>
-            <Button type="submit" disabled={submit.isPending}>
-              {submit.isPending ? "Submitting…" : "Submit payment"}
+        {payableDues.length === 0 ? (
+          <DialogBody className="space-y-3 text-sm text-muted-foreground">
+            <p>Payments must settle an open due. You have no payable dues right now.</p>
+            <Button asChild variant="outline" size="sm">
+              <Link to="/dues">View dues</Link>
             </Button>
-          </DialogFooter>
-        </form>
+          </DialogBody>
+        ) : (
+          <form
+            className="flex min-h-0 flex-1 flex-col"
+            onSubmit={(e) => {
+              e.preventDefault();
+              submit.mutate(new FormData(e.currentTarget));
+            }}
+          >
+            <DialogBody className="space-y-4">
+              <div className="space-y-2">
+                <Label>Due</Label>
+                <Select value={dueId} onValueChange={setDueId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select the due this payment is for" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {payableDues.map((due) => (
+                      <SelectItem key={due.id} value={due.id}>
+                        {due.title} · {formatMoney(due.payable)} payable
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {selectedDue ? (
+                <p className="text-xs text-muted-foreground">
+                  Remaining {formatMoney(selectedDue.remaining)}
+                  {selectedDue.paid_pending > 0
+                    ? ` · ${formatMoney(selectedDue.paid_pending)} awaiting approval`
+                    : ""}
+                </p>
+              ) : null}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="amount">Amount</Label>
+                  <Input
+                    id="amount"
+                    name="amount"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max={selectedDue?.payable}
+                    key={selectedDue?.id ?? "amount"}
+                    defaultValue={selectedDue?.payable ?? ""}
+                    required
+                    disabled={!selectedDue}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="payment_date">Payment date</Label>
+                  <Input
+                    id="payment_date"
+                    name="payment_date"
+                    type="date"
+                    defaultValue={todayLocalDate()}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Payment mode</Label>
+                <Select value={mode} onValueChange={(v) => setMode(v as "cash" | "online")}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="online">Online transfer</SelectItem>
+                    <SelectItem value="cash">Cash</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {mode === "online" ? (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="txn_ref">Transaction reference</Label>
+                    <Input id="txn_ref" name="txn_ref" required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="screenshot">Payment screenshot</Label>
+                    <Input
+                      id="screenshot"
+                      name="screenshot"
+                      type="file"
+                      accept="image/*,.pdf"
+                      required
+                    />
+                  </div>
+                </>
+              ) : null}
+              <div className="space-y-2">
+                <Label htmlFor="paid_by">Paid by</Label>
+                <PaidBySelect familyId={familyId} id="paid_by" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="remarks">Remarks</Label>
+                <Textarea id="remarks" name="remarks" rows={2} />
+              </div>
+            </DialogBody>
+            <DialogFooter>
+              <Button type="submit" disabled={submit.isPending || !selectedDue}>
+                {submit.isPending ? "Submitting…" : "Submit payment"}
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );

@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { getFamilyById } from "@/lib/api/families";
 import { listPayments } from "@/lib/api/payments";
-import { resetFamilyPassword } from "@/lib/admin.functions";
+import { resetFamilyPassword, setFamilyLoginActive } from "@/lib/admin.functions";
 import { AppShell } from "@/components/AppShell";
 import { FamilyEditor } from "@/components/family/FamilyEditor";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -26,8 +26,11 @@ export const Route = createFileRoute("/_authenticated/families/$id")({
   component: FamilyDetail,
 });
 
+const PAGE_SIZE = 50;
+
 function FamilyDetail() {
   const { id } = Route.useParams();
+  const [page, setPage] = useState(0);
 
   const family = useQuery({
     queryKey: ["family", id],
@@ -35,9 +38,22 @@ function FamilyDetail() {
   });
 
   const payments = useQuery({
-    queryKey: ["family-payments", id],
-    queryFn: () => listPayments({ data: { familyId: id } }),
+    queryKey: ["family-payments", id, page],
+    queryFn: () =>
+      listPayments({ data: { familyId: id, limit: PAGE_SIZE, offset: page * PAGE_SIZE } }),
   });
+
+  const items = payments.data?.items ?? [];
+  const total = payments.data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  useEffect(() => {
+    setPage(0);
+  }, [id]);
+
+  useEffect(() => {
+    if (page > pageCount - 1) setPage(Math.max(0, pageCount - 1));
+  }, [page, pageCount]);
 
   return (
     <AppShell
@@ -55,7 +71,10 @@ function FamilyDetail() {
         <section className="surface p-6">
           <h2 className="text-base font-semibold">Login access</h2>
           {family.data?.wife_user_id ? (
-            <ResetPasswordForm userId={family.data.wife_user_id} />
+            <LoginAccess
+              familyId={id}
+              loginActive={family.data.login_active !== false}
+            />
           ) : (
             <p className="mt-2 text-sm text-muted-foreground">
               No login is linked to this family yet.
@@ -66,7 +85,7 @@ function FamilyDetail() {
         <section className="surface p-6">
           <h2 className="text-base font-semibold">Payment history</h2>
           <div className="mt-4 divide-y divide-border">
-            {(payments.data ?? []).map((p) => (
+            {items.map((p) => (
               <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                 <div>
                   <Link
@@ -86,25 +105,85 @@ function FamilyDetail() {
                 </div>
               </div>
             ))}
-            {(payments.data ?? []).length === 0 ? (
+            {items.length === 0 ? (
               <p className="py-3 text-sm text-muted-foreground">No payments yet.</p>
             ) : null}
           </div>
+          {total > PAGE_SIZE ? (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground">
+                {total} payments · page {page + 1} of {pageCount}
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={page <= 0}
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                >
+                  Previous
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={page >= pageCount - 1}
+                  onClick={() => setPage((p) => p + 1)}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </section>
       </div>
     </AppShell>
   );
 }
 
-function ResetPasswordForm({ userId }: { userId: string }) {
+function LoginAccess({ familyId, loginActive }: { familyId: string; loginActive: boolean }) {
+  const queryClient = useQueryClient();
+
+  const lock = useMutation({
+    mutationFn: async (active: boolean) => setFamilyLoginActive({ data: { familyId, active } }),
+    onSuccess: (result) => {
+      toast.success(result.active ? "Login unlocked" : "Login locked");
+      queryClient.invalidateQueries({ queryKey: ["family", familyId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <div className="mt-4 space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          {loginActive
+            ? "This family can sign in with the issued username."
+            : "This login is locked. They cannot sign in until you unlock it."}
+        </p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={lock.isPending}
+          onClick={() => lock.mutate(!loginActive)}
+        >
+          {lock.isPending ? "Updating…" : loginActive ? "Lock login" : "Unlock login"}
+        </Button>
+      </div>
+      <ResetPasswordForm familyId={familyId} />
+    </div>
+  );
+}
+
+function ResetPasswordForm({ familyId }: { familyId: string }) {
   const [password, setPassword] = useState("");
 
   const reset = useMutation({
     mutationFn: async () => {
-      await resetFamilyPassword({ data: { userId, password } });
+      await resetFamilyPassword({ data: { familyId, password } });
     },
     onSuccess: () => {
-      toast.success("Password reset. Share it with the family.");
+      toast.success("Password reset. Existing sessions were signed out.");
       setPassword("");
     },
     onError: (e: Error) => toast.error(e.message),
@@ -112,7 +191,7 @@ function ResetPasswordForm({ userId }: { userId: string }) {
 
   return (
     <form
-      className="mt-4 flex flex-wrap items-end gap-3"
+      className="flex flex-wrap items-end gap-3"
       onSubmit={(e) => {
         e.preventDefault();
         reset.mutate();

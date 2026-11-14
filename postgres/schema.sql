@@ -33,6 +33,7 @@ CREATE TABLE users (
     password_hash VARCHAR(255) NULL,
     app_role      VARCHAR(20)  NULL,
     is_active     BOOLEAN NOT NULL DEFAULT TRUE,
+    session_epoch INTEGER NOT NULL DEFAULT 1,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT ck_users_app_role CHECK (app_role IS NULL OR app_role IN ('admin', 'family'))
 );

@@ -24,11 +24,13 @@ export const listFamilies = createServerFn({ method: "GET" })
     const rows = await query(
       `SELECT f.id, f.family_no, f.family_name, f.address, f.contact_phone, f.contact_email,
               f.family_photo_url, f.wife_user_id, f.created_by, f.created_at, f.updated_at,
+              u.is_active AS login_active,
               h.full_name AS head_of_family,
               (SELECT COUNT(*) FROM family_members m WHERE m.family_id = f.id) AS member_count,
               (SELECT COUNT(*) FROM family_members m WHERE m.family_id = f.id AND m.gender = 'Male') AS male_count,
               (SELECT COUNT(*) FROM family_members m WHERE m.family_id = f.id AND m.gender = 'Female') AS female_count
        FROM families f
+       LEFT JOIN users u ON u.id = f.wife_user_id
        LEFT JOIN family_members h ON h.family_id = f.id AND h.is_head
        ORDER BY f.family_no`,
     );
@@ -60,11 +62,13 @@ export const getFamilyById = createServerFn({ method: "GET" })
     const row = await queryOne(
       `SELECT f.id, f.family_no, f.family_name, f.address, f.contact_phone, f.contact_email,
               f.family_photo_url, f.wife_user_id, f.created_by, f.created_at, f.updated_at,
+              u.is_active AS login_active,
               h.full_name AS head_of_family,
               (SELECT COUNT(*) FROM family_members m WHERE m.family_id = f.id) AS member_count,
               (SELECT COUNT(*) FROM family_members m WHERE m.family_id = f.id AND m.gender = 'Male') AS male_count,
               (SELECT COUNT(*) FROM family_members m WHERE m.family_id = f.id AND m.gender = 'Female') AS female_count
        FROM families f
+       LEFT JOIN users u ON u.id = f.wife_user_id
        LEFT JOIN family_members h ON h.family_id = f.id AND h.is_head
        WHERE f.id = @id`,
       { id: data.id },
@@ -173,6 +177,9 @@ export const createFamilyWithLogin = createServerFn({ method: "POST" })
         userId,
         familyId: family.id,
       });
+
+      const { assignMissingOpenDues } = await import("@/lib/api/dues");
+      await assignMissingOpenDues();
 
       return {
         familyId: String(family.id),
@@ -449,39 +456,85 @@ export const createFamilyLogin = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data }) => {
-    const { execute } = await import("@/lib/db");
+    const { withTransaction } = await import("@/lib/db");
     const { createUserRecord } = await import("@/lib/api/users");
     const username = data.username.toLowerCase();
     const email = `${username}@${FAMILY_EMAIL_DOMAIN}`;
-    const userId = await createUserRecord({
-      email,
-      username,
-      fullName: data.fullName ?? "",
-      password: data.password,
-      appRole: "family",
+
+    const result = await withTransaction(async (sql) => {
+      const family = await sql.queryOne<{ id: string; wife_user_id: string | null }>(
+        `SELECT id, wife_user_id FROM families WHERE id = @familyId FOR UPDATE`,
+        { familyId: data.familyId },
+      );
+      if (!family) throw new Error("Family not found");
+      if (family.wife_user_id) {
+        throw new Error("This family already has a login. Reset the password instead.");
+      }
+
+      const userId = await createUserRecord(
+        {
+          email,
+          username,
+          fullName: data.fullName ?? "",
+          password: data.password,
+          appRole: "family",
+        },
+        sql,
+      );
+      const linked = await sql.execute(
+        `UPDATE families SET wife_user_id = @userId WHERE id = @familyId AND wife_user_id IS NULL`,
+        { userId, familyId: data.familyId },
+      );
+      if (!linked) throw new Error("This family already has a login. Reset the password instead.");
+      return { userId, username };
     });
-    await execute(`UPDATE families SET wife_user_id = @userId WHERE id = @familyId`, {
-      userId,
-      familyId: data.familyId,
-    });
-    return { userId, username };
+
+    const { assignMissingOpenDues } = await import("@/lib/api/dues");
+    await assignMissingOpenDues();
+    return result;
   });
 
 export const resetFamilyPassword = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .inputValidator((input: unknown) =>
-    z.object({ userId: z.string().uuid(), password: passwordSchema }).parse(input),
+    z.object({ familyId: z.string().uuid(), password: passwordSchema }).parse(input),
   )
   .handler(async ({ data }) => {
     const bcrypt = (await import("bcryptjs")).default;
     const { execute } = await import("@/lib/db");
+    const { getFamilyLoginUserId } = await import("@/lib/api/users");
+    const userId = await getFamilyLoginUserId(data.familyId);
     const passwordHash = await bcrypt.hash(data.password, 10);
-    const n = await execute(`UPDATE users SET password_hash = @hash WHERE id = @userId`, {
-      hash: passwordHash,
-      userId: data.userId,
-    });
+    const n = await execute(
+      `UPDATE users
+       SET password_hash = @hash, session_epoch = session_epoch + 1
+       WHERE id = @userId`,
+      { hash: passwordHash, userId },
+    );
     if (!n) throw new Error("User not found");
     return { ok: true };
+  });
+
+export const setFamilyLoginActive = createServerFn({ method: "POST" })
+  .middleware([requireAdmin])
+  .inputValidator((input: unknown) =>
+    z.object({ familyId: z.string().uuid(), active: z.boolean() }).parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { execute } = await import("@/lib/db");
+    const { getFamilyLoginUserId } = await import("@/lib/api/users");
+    const userId = await getFamilyLoginUserId(data.familyId);
+    if (data.active) {
+      await execute(`UPDATE users SET is_active = TRUE WHERE id = @userId`, { userId });
+    } else {
+      await execute(
+        `UPDATE users
+         SET is_active = FALSE, session_epoch = session_epoch + 1
+         WHERE id = @userId`,
+        { userId },
+      );
+    }
+    return { ok: true, active: data.active };
   });
 
 export const createAdminLogin = createServerFn({ method: "POST" })
@@ -541,13 +594,25 @@ export const deleteFamily = createServerFn({ method: "POST" })
   .middleware([requireAdmin])
   .inputValidator((input: unknown) => z.object({ id: z.string().uuid() }).parse(input))
   .handler(async ({ data }) => {
-    const { execute, queryOne } = await import("@/lib/db");
-    const family = await queryOne<{ id: string; family_name: string }>(
-      `SELECT id, family_name FROM families WHERE id = @id`,
-      { id: data.id },
-    );
-    if (!family) throw new Error("Family not found");
+    const { withTransaction } = await import("@/lib/db");
+    const { deactivateFamilyLogin } = await import("@/lib/api/users");
 
-    await execute(`DELETE FROM families WHERE id = @id`, { id: data.id });
-    return { ok: true, family_name: family.family_name };
+    return withTransaction(async (sql) => {
+      const family = await sql.queryOne<{
+        id: string;
+        family_name: string;
+        wife_user_id: string | null;
+      }>(`SELECT id, family_name, wife_user_id FROM families WHERE id = @id FOR UPDATE`, {
+        id: data.id,
+      });
+      if (!family) throw new Error("Family not found");
+
+      const loginId = family.wife_user_id;
+      await sql.execute(`UPDATE families SET wife_user_id = NULL WHERE id = @id`, { id: data.id });
+      await sql.execute(`DELETE FROM families WHERE id = @id`, { id: data.id });
+      if (loginId) {
+        await deactivateFamilyLogin(String(loginId), { clearPassword: true }, sql);
+      }
+      return { ok: true as const, family_name: family.family_name };
+    });
   });

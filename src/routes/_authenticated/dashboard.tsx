@@ -70,14 +70,14 @@ function Dashboard() {
         />
         <StatCard
           label="Total debit"
-          value={isAdmin ? formatMoney(s?.debit) : "—"}
-          hint={isAdmin ? "Expenses recorded" : "Visible to admin"}
+          value={formatMoney(s?.debit)}
+          hint={isAdmin ? "All recorded expenses" : "Expenses assigned to your family"}
           tone="debit"
         />
         <StatCard
           label="Balance"
-          value={isAdmin ? formatMoney((s?.credit ?? 0) - (s?.debit ?? 0)) : formatMoney(s?.credit)}
-          hint={isAdmin ? "Credit minus debit" : "Approved total"}
+          value={formatMoney((s?.credit ?? 0) - (s?.debit ?? 0))}
+          hint="Credit minus debit"
         />
         <StatCard
           label="Pending approval"
@@ -89,7 +89,7 @@ function Dashboard() {
       <section className="surface mt-6 p-6">
         <h2 className="text-base font-semibold">Recent payments</h2>
         <div className="mt-4 divide-y divide-border">
-          {(recent.data ?? []).map((p) => (
+          {(recent.data?.items ?? []).map((p) => (
             <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
               <div>
                 <Link
@@ -109,7 +109,7 @@ function Dashboard() {
               </div>
             </div>
           ))}
-          {(recent.data ?? []).length === 0 ? (
+          {(recent.data?.items ?? []).length === 0 ? (
             <p className="py-3 text-sm text-muted-foreground">No payments recorded yet.</p>
           ) : null}
         </div>

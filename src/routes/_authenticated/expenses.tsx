@@ -3,13 +3,21 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createExpense, listExpenses } from "@/lib/api/expenses";
+import { listFamiliesLite } from "@/lib/api/families";
 import { AppShell } from "@/components/AppShell";
-import { formatMoney, uploadFile, useRole } from "@/lib/auth";
+import { formatMoney, todayLocalDate, uploadFile, useRole } from "@/lib/auth";
 import { PrivateFileLink } from "@/components/PrivateImage";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const Route = createFileRoute("/_authenticated/expenses")({
   head: () => ({
@@ -24,15 +32,29 @@ export const Route = createFileRoute("/_authenticated/expenses")({
   component: ExpensesPage,
 });
 
+const SHARED_FAMILY = "shared";
+
+function expenseFamilyLabel(e: { family_no: string | null; family_name: string | null }) {
+  if (e.family_no && e.family_name) return `${e.family_no} · ${e.family_name}`;
+  return "Shared — all families";
+}
+
 function ExpensesPage() {
   const { isAdmin } = useRole();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
+  const [familyKey, setFamilyKey] = useState(SHARED_FAMILY);
 
   const expenses = useQuery({
     queryKey: ["expenses"],
     enabled: isAdmin,
     queryFn: () => listExpenses(),
+  });
+
+  const families = useQuery({
+    queryKey: ["families-lite"],
+    enabled: isAdmin,
+    queryFn: () => listFamiliesLite(),
   });
 
   const add = useMutation({
@@ -48,9 +70,9 @@ function ExpensesPage() {
           amount,
           category: String(form.get("category") ?? "").trim() || "General",
           description: String(form.get("description") ?? "").trim() || null,
-          expense_date:
-            String(form.get("expense_date") ?? "") || new Date().toISOString().slice(0, 10),
+          expense_date: String(form.get("expense_date") ?? "") || todayLocalDate(),
           attachment_url: key,
+          family_id: familyKey === SHARED_FAMILY ? null : familyKey,
         },
       });
     },
@@ -58,6 +80,8 @@ function ExpensesPage() {
       toast.success("Expense recorded");
       queryClient.invalidateQueries({ queryKey: ["expenses"] });
       queryClient.invalidateQueries({ queryKey: ["summary"] });
+      queryClient.invalidateQueries({ queryKey: ["report"] });
+      setFamilyKey(SHARED_FAMILY);
     },
     onError: (e: Error) => toast.error(e.message),
     onSettled: () => setSaving(false),
@@ -93,7 +117,7 @@ function ExpensesPage() {
                   id="expense_date"
                   name="expense_date"
                   type="date"
-                  defaultValue={new Date().toISOString().slice(0, 10)}
+                  defaultValue={todayLocalDate()}
                   required
                 />
               </div>
@@ -102,6 +126,22 @@ function ExpensesPage() {
                 <Input id="category" name="category" placeholder="Utilities, groceries…" required />
               </div>
               <div className="space-y-2">
+                <Label>Charge to family</Label>
+                <Select value={familyKey} onValueChange={setFamilyKey}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select family" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={SHARED_FAMILY}>Shared — all families</SelectItem>
+                    {(families.data ?? []).map((f) => (
+                      <SelectItem key={f.id} value={f.id}>
+                        {f.family_no} · {f.family_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="attachment">Receipt</Label>
                 <Input id="attachment" name="attachment" type="file" accept="image/*,.pdf" />
               </div>
@@ -134,7 +174,7 @@ function ExpensesPage() {
                       {e.description ? ` · ${e.description}` : ""}
                     </p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Added by {e.created_by_name ?? "Unknown"}
+                      {expenseFamilyLabel(e)} · Added by {e.created_by_name ?? "Unknown"}
                     </p>
                     {e.attachment_url ? (
                       <PrivateFileLink path={e.attachment_url} label="View receipt" />

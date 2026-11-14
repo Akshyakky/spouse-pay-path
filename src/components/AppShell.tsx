@@ -1,6 +1,7 @@
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import {
   LayoutDashboard,
   Users,
@@ -12,11 +13,23 @@ import {
   UserCircle,
   ShieldCheck,
   ClipboardList,
+  KeyRound,
 } from "lucide-react";
-import { logout } from "@/lib/api/auth";
+import { changePassword, logout } from "@/lib/api/auth";
 import { useRole } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogBody,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 type NavItem = { to: string; label: string; icon: typeof Users; admin?: boolean; family?: boolean };
 
@@ -103,9 +116,10 @@ export function AppShell({
           <p className="mt-0.5 text-xs font-medium uppercase tracking-wide text-sidebar-primary">
             {role === "admin" ? "Administrator" : "Family user"}
           </p>
+          <ChangePasswordButton />
           <button
             onClick={handleSignOut}
-            className="mt-3 inline-flex items-center gap-2 text-sm text-sidebar-foreground/80 hover:text-sidebar-accent-foreground"
+            className="mt-2 inline-flex items-center gap-2 text-sm text-sidebar-foreground/80 hover:text-sidebar-accent-foreground"
           >
             <LogOut className="size-4" /> Sign out
           </button>
@@ -136,6 +150,102 @@ export function AppShell({
         <main className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6">{children}</main>
       </div>
     </div>
+  );
+}
+
+function ChangePasswordButton() {
+  const [open, setOpen] = useState(false);
+
+  const save = useMutation({
+    mutationFn: async (form: FormData) => {
+      const currentPassword = String(form.get("current_password") ?? "");
+      const newPassword = String(form.get("new_password") ?? "");
+      const confirmPassword = String(form.get("confirm_password") ?? "");
+      if (newPassword !== confirmPassword) throw new Error("New passwords do not match");
+      await changePassword({ data: { currentPassword, newPassword } });
+    },
+    onSuccess: () => {
+      toast.success("Password updated");
+      setOpen(false);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (save.isPending) return;
+        setOpen(next);
+      }}
+    >
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          className="mt-3 inline-flex items-center gap-2 text-sm text-sidebar-foreground/80 hover:text-sidebar-accent-foreground"
+        >
+          <KeyRound className="size-4" /> Change password
+        </button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Change password</DialogTitle>
+        </DialogHeader>
+        <form
+          className="flex min-h-0 flex-1 flex-col"
+          onSubmit={(e) => {
+            e.preventDefault();
+            save.mutate(new FormData(e.currentTarget));
+          }}
+        >
+          <DialogBody className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Use a new password after the administrator issues a temporary one.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="current_password">Current password</Label>
+              <Input
+                id="current_password"
+                name="current_password"
+                type="password"
+                autoComplete="current-password"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new_password">New password</Label>
+              <Input
+                id="new_password"
+                name="new_password"
+                type="password"
+                autoComplete="new-password"
+                minLength={8}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm_password">Confirm new password</Label>
+              <Input
+                id="confirm_password"
+                name="confirm_password"
+                type="password"
+                autoComplete="new-password"
+                minLength={8}
+                required
+              />
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={save.isPending}>
+              {save.isPending ? "Saving…" : "Update password"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

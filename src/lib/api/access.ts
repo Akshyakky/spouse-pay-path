@@ -16,3 +16,9 @@ export async function getOwnedFamilyId(userId: string): Promise<string | null> {
   );
   return row ? String(row.id) : null;
 }
+
+/** Family filter without `($1 IS NULL OR col = $1)`, which Postgres rejects when $1 is null. */
+export function familyScopeSql(familyId: string | null, column = "family_id") {
+  if (!familyId) return { sql: "", params: {} as { familyId?: string } };
+  return { sql: ` AND ${column} = @familyId`, params: { familyId } };
+}

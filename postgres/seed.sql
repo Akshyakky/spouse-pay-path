@@ -8,8 +8,8 @@
 
 BEGIN;
 
-INSERT INTO users (id, email, username, full_name, password_hash, app_role)
+INSERT INTO users (email, username, full_name, password_hash, app_role)
 VALUES
-    ('11111111-1111-1111-1111-111111111111', 'admin@spousepaypath.local', 'admin', 'System Admin', '<hash-admin>', 'admin');
+    ('admin@spousepaypath.local', 'admin', 'System Admin', '<hash-admin>', 'admin');
 
 COMMIT;

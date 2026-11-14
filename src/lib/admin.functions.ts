@@ -1,6 +1,7 @@
 export {
   createFamilyLogin,
   resetFamilyPassword,
+  setFamilyLoginActive,
   createAdminLogin,
   listAdmins,
   createFamilyWithLogin,

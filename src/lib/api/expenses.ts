@@ -10,8 +10,10 @@ export const listExpenses = createServerFn({ method: "GET" })
     const rows = await query(
       `SELECT e.id, e.category, e.amount, e.expense_date, e.description, e.attachment_url,
               e.family_id, e.created_by, e.created_at,
+              f.family_no, f.family_name,
               COALESCE(NULLIF(p.full_name, ''), p.username, u.email) AS created_by_name
        FROM expenses e
+       LEFT JOIN families f ON f.id = e.family_id
        LEFT JOIN profiles p ON p.id = e.created_by
        LEFT JOIN users u ON u.id = e.created_by
        ORDER BY e.expense_date DESC, e.created_at DESC`,
@@ -34,7 +36,14 @@ export const createExpense = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { execute } = await import("@/lib/db");
+    const { execute, queryOne } = await import("@/lib/db");
+    const familyId = data.family_id || null;
+    if (familyId) {
+      const family = await queryOne<{ id: string }>(`SELECT id FROM families WHERE id = @id`, {
+        id: familyId,
+      });
+      if (!family) throw new Error("Family not found");
+    }
     await execute(
       `INSERT INTO expenses
          (amount, category, description, expense_date, attachment_url, family_id, created_by)
@@ -46,7 +55,7 @@ export const createExpense = createServerFn({ method: "POST" })
         description: data.description || null,
         expenseDate: data.expense_date,
         attachment: data.attachment_url || null,
-        familyId: data.family_id || null,
+        familyId,
         createdBy: context.userId,
       },
     );
@@ -60,6 +69,7 @@ export const getReport = createServerFn({ method: "GET" })
       .object({
         from: z.string().min(8).max(20),
         to: z.string().min(8).max(20),
+        familyId: z.string().uuid().optional().nullable(),
       })
       .parse(input),
   )
@@ -67,34 +77,37 @@ export const getReport = createServerFn({ method: "GET" })
     const { query } = await import("@/lib/db");
     const { mapExpense } = await import("@/lib/api/mappers");
     const { toDateString } = await import("@/lib/db-utils");
-    const { getOwnedFamilyId } = await import("@/lib/api/access");
+    const { familyScopeSql, getOwnedFamilyId } = await import("@/lib/api/access");
 
     let familyId: string | null = null;
     if (!context.isAdmin) {
       familyId = await getOwnedFamilyId(context.userId);
       if (!familyId) return { payments: [], expenses: [] };
+    } else {
+      familyId = data.familyId ?? null;
     }
+
+    const familyScope = familyScopeSql(familyId);
+    const expenseScope = familyScopeSql(familyId, "e.family_id");
 
     const payments = await query(
       `SELECT id, voucher_no, amount, status, payment_date, mode
        FROM payments
-       WHERE payment_date >= @fromDate AND payment_date <= @toDate
-         AND (@familyId IS NULL OR family_id = @familyId)
+       WHERE payment_date >= @fromDate AND payment_date <= @toDate${familyScope.sql}
        ORDER BY payment_date DESC`,
-      { fromDate: data.from, toDate: data.to, familyId },
+      { fromDate: data.from, toDate: data.to, ...familyScope.params },
     );
 
-    let expenses: ReturnType<typeof mapExpense>[] = [];
-    if (context.isAdmin) {
-      const rows = await query(
-        `SELECT id, amount, category, expense_date, description, attachment_url, family_id, created_by, created_at
-         FROM expenses
-         WHERE expense_date >= @fromDate AND expense_date <= @toDate
-         ORDER BY expense_date DESC`,
-        { fromDate: data.from, toDate: data.to },
-      );
-      expenses = rows.map(mapExpense);
-    }
+    const rows = await query(
+      `SELECT e.id, e.amount, e.category, e.expense_date, e.description, e.attachment_url,
+              e.family_id, e.created_by, e.created_at, f.family_no, f.family_name
+       FROM expenses e
+       LEFT JOIN families f ON f.id = e.family_id
+       WHERE e.expense_date >= @fromDate AND e.expense_date <= @toDate${expenseScope.sql}
+       ORDER BY e.expense_date DESC`,
+      { fromDate: data.from, toDate: data.to, ...expenseScope.params },
+    );
+    const expenses = rows.map(mapExpense);
 
     return {
       payments: payments.map((p) => ({

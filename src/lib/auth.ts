@@ -6,9 +6,10 @@ import {
   calcAge,
   formatMoney,
   loginIdentifierToEmail,
+  todayLocalDate,
 } from "@/lib/auth-utils";
 
-export { FAMILY_EMAIL_DOMAIN, calcAge, formatMoney, loginIdentifierToEmail };
+export { FAMILY_EMAIL_DOMAIN, calcAge, formatMoney, loginIdentifierToEmail, todayLocalDate };
 export type { AppRole } from "@/lib/api/auth";
 
 export function useAuthUser() {

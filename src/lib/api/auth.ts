@@ -34,8 +34,9 @@ export const login = createServerFn({ method: "POST" })
       full_name: string | null;
       password_hash: string | null;
       is_active: boolean;
+      session_epoch: number;
     }>(
-      `SELECT id, email, username, full_name, password_hash, is_active
+      `SELECT id, email, username, full_name, password_hash, is_active, session_epoch
        FROM users
        WHERE LOWER(email) = LOWER(@email)`,
       { email },
@@ -55,7 +56,7 @@ export const login = createServerFn({ method: "POST" })
       fullName: user.full_name,
     };
 
-    await startSession(sessionUser);
+    await startSession(sessionUser, Number(user.session_epoch));
     return { user: sessionUser };
   });
 
@@ -74,6 +75,45 @@ export const getMyRole = createServerFn({ method: "GET" })
   .middleware([requireAuth])
   .handler(async ({ context }): Promise<AppRole> => {
     return context.isAdmin ? "admin" : "family";
+  });
+
+export const changePassword = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        currentPassword: z.string().min(1).max(72),
+        newPassword: z.string().min(8).max(72),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    if (data.currentPassword === data.newPassword) {
+      throw new Error("New password must be different from the current password");
+    }
+    const bcrypt = (await import("bcryptjs")).default;
+    const { queryOne } = await import("@/lib/db");
+
+    const user = await queryOne<{ password_hash: string | null }>(
+      `SELECT password_hash FROM users WHERE id = @userId AND is_active`,
+      { userId: context.userId },
+    );
+    if (!user?.password_hash) throw new Error("Account not found");
+
+    const ok = await bcrypt.compare(data.currentPassword, user.password_hash);
+    if (!ok) throw new Error("Current password is incorrect");
+
+    const passwordHash = await bcrypt.hash(data.newPassword, 10);
+    const { startSession } = await import("@/lib/session");
+    const updated = await queryOne<{ session_epoch: number }>(
+      `UPDATE users
+       SET password_hash = @hash, session_epoch = session_epoch + 1
+       WHERE id = @userId
+       RETURNING session_epoch`,
+      { hash: passwordHash, userId: context.userId },
+    );
+    await startSession(context.user, Number(updated?.session_epoch ?? 1));
+    return { ok: true };
   });
 
 export const getMyFamily = createServerFn({ method: "GET" })

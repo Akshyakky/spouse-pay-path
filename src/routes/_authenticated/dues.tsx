@@ -13,7 +13,7 @@ import {
 import { createPayment } from "@/lib/api/payments";
 import { AppShell } from "@/components/AppShell";
 import { PaidBySelect } from "@/components/PaidBySelect";
-import { formatMoney, uploadFile, useMyFamily, useRole } from "@/lib/auth";
+import { formatMoney, todayLocalDate, uploadFile, useMyFamily, useRole } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -420,7 +420,7 @@ function PayDueDialog({ familyId, due }: { familyId: string; due: FamilyDueRow }
           amount,
           mode,
           payment_date:
-            String(form.get("payment_date") ?? "") || new Date().toISOString().slice(0, 10),
+            String(form.get("payment_date") ?? "") || todayLocalDate(),
           txn_ref: txnRef || null,
           paid_by: String(form.get("paid_by") ?? "").trim() || null,
           remarks: String(form.get("remarks") ?? "").trim() || `Payment for ${due.title}`,
@@ -493,7 +493,7 @@ function PayDueDialog({ familyId, due }: { familyId: string; due: FamilyDueRow }
                 id={`payment_date_${due.id}`}
                 name="payment_date"
                 type="date"
-                defaultValue={new Date().toISOString().slice(0, 10)}
+                defaultValue={todayLocalDate()}
                 required
               />
             </div>

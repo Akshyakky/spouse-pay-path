@@ -13,7 +13,7 @@ import {
   type MemberRow,
 } from "@/lib/api/families";
 import type { IdCardType } from "@/lib/api/mappers";
-import { calcAge, uploadFile } from "@/lib/auth";
+import { calcAge, todayLocalDate, uploadFile } from "@/lib/auth";
 import {
   MEMBER_RELATIONSHIPS,
   relationshipLabel,
@@ -374,7 +374,7 @@ export function FamilyEditor({
 function ageToDob(age: number): string {
   const d = new Date();
   d.setFullYear(d.getFullYear() - age);
-  return d.toISOString().slice(0, 10);
+  return todayLocalDate(d);
 }
 
 function MemberDialog({ familyId, member }: { familyId: string; member?: Member }) {
