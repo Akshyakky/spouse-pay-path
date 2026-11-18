@@ -172,8 +172,8 @@ export async function withTransaction<T>(fn: (sql: DbSql) => Promise<T>): Promis
     };
     const sql: DbSql = {
       query: runQuery,
-      queryOne: async (text, params) => {
-        const rows = await runQuery(text, params);
+      queryOne: async <R extends Record<string, unknown> = Record<string, unknown>>(text: string, params?: Record<string, unknown>) => {
+        const rows = await runQuery<R>(text, params);
         return rows[0] ?? null;
       },
       execute: async (text, params) => {
